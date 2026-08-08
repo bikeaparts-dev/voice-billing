@@ -3,6 +3,7 @@ const cors = require('cors');
 const multer = require('multer');
 const fs = require('fs');
 const dotenv = require('dotenv');
+const path = require('path'); // <-- 1. path मॉड्यूल जोड़ा गया
 const { OpenAI } = require('openai');
 
 dotenv.config();
@@ -11,13 +12,20 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// <-- 2. HTML फाइल और static फाइलों को सर्व करने के लिए ये 2 लाइनें जोडी गईं
+app.use(express.static(__dirname));
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 const upload = multer({ dest: 'uploads/' });
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "dummy_key"
 });
 
-// Updated System Prompt with Dual-Mode Pricing Support
+// System Prompt
 const SYSTEM_PROMPT = `
 You are an expert Indian shop billing assistant. 
 Parse the input into structured JSON for an invoice.
@@ -106,8 +114,7 @@ app.post('/api/test-billing', async (req, res) => {
   try {
     const { text } = req.body;
     
-    // Mock Response when No API Key is set
-    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === "your_openai_api_key_here") {
+    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === "your_openai_api_key_here" || process.env.OPENAI_API_KEY === "dummy_key") {
       let mockData = {
         customer_name: "रमेश कुमार (Test)",
         items: [
