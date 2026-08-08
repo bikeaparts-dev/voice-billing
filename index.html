@@ -1,229 +1,121 @@
 <!DOCTYPE html>
 <html lang="hi">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Voice Billing Web App</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Billing</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 90%; max-width: 400px; text-align: center; }
+        .mic-btn { background: #ff4757; color: white; border: none; width: 80px; height: 80px; border-radius: 50%; font-size: 32px; cursor: pointer; box-shadow: 0 5px 15px rgba(255, 71, 87, 0.4); transition: 0.3s; margin: 20px 0; }
+        .mic-btn.recording { animation: pulse 1.2s infinite; background: #2ed573; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        .btn-demo { background: #eccc68; border: none; padding: 10px 15px; border-radius: 10px; font-weight: bold; cursor: pointer; margin-top: 10px; width: 100%; }
+        #status { color: #70a1ff; font-weight: bold; margin: 10px 0; }
+        #result { background: #f1f2f6; padding: 15px; border-radius: 10px; text-align: left; margin-top: 15px; font-size: 14px; white-space: pre-wrap; }
+    </style>
 </head>
-<body class="bg-gray-100 min-h-screen p-4 flex flex-col items-center justify-center">
+<body>
 
-  <div class="w-full max-w-md bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center">
-    
-    <h1 class="text-2xl font-bold text-gray-800 mb-1">🎤 Voice Billing</h1>
-    <p class="text-sm text-gray-500 mb-6 text-center">बोलकर या लिखकर तुरंत बिल बनाएं</p>
+<div class="card">
+    <h2>🎤 Voice Billing</h2>
+    <p>बोलकर या लिखकर तुरंत बिल बनाएं</p>
 
-    <!-- Mic Button -->
-    <div class="relative flex items-center justify-center mb-4">
-      <button id="recordBtn" class="w-20 h-20 bg-red-500 hover:bg-red-600 text-white rounded-full flex flex-col items-center justify-center shadow-lg">
-        <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72h-1.7z"/>
-        </svg>
-      </button>
-    </div>
+    <button id="micBtn" class="mic-btn">🎤</button>
+    <div id="status">बटन दबाएं और बोलना शुरू करें</div>
 
-    <div id="status" class="text-xs font-medium text-gray-500 mb-3 text-center">
-      माइक दबाएं या नीचे डेमो बटन से टेस्ट करें
-    </div>
+    <button id="demoBtn" class="btn-demo">⚡ बिना माइक के टेस्ट करें (Demo)</button>
 
-    <button id="testBtn" class="mb-4 text-xs bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-semibold py-2 px-4 rounded-full border border-indigo-200">
-      ⚡ बिना माइक के टेस्ट करें (Editable Table Demo)
-    </button>
+    <div id="result" style="display:none;"></div>
+</div>
 
-    <!-- Loading -->
-    <div id="loading" class="hidden my-4 text-sm text-indigo-600 font-medium animate-pulse">
-      कैलकुलेशन हो रही है...
-    </div>
+<script>
+    const micBtn = document.getElementById('micBtn');
+    const demoBtn = document.getElementById('demoBtn');
+    const statusText = document.getElementById('status');
+    const resultDiv = document.getElementById('result');
 
-    <!-- Generated Invoice Output -->
-    <div id="invoiceContainer" class="hidden w-full border-t border-gray-200 pt-4 mt-2">
-      
-      <!-- Customer Info & Phone Number -->
-      <div class="mb-3 space-y-2">
-        <div class="flex justify-between items-center">
-          <h2 class="text-sm font-bold text-gray-800">ग्राहक: <span id="custName" class="text-indigo-600">N/A</span></h2>
-          <span class="bg-green-100 text-green-800 text-[10px] px-2 py-0.5 rounded-full font-medium">Editable</span>
-        </div>
-        <div class="flex items-center space-x-2">
-          <span class="text-xs text-gray-500 font-medium">WhatsApp No:</span>
-          <input type="text" id="custPhone" placeholder="9876543210" value="9876543210" class="border rounded px-2 py-1 text-xs w-full focus:outline-indigo-500">
-        </div>
-      </div>
+    // Web Speech API Support Check
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-      <!-- Editable Items Table -->
-      <table class="w-full text-left text-xs mb-4">
-        <thead>
-          <tr class="border-b text-gray-400">
-            <th class="pb-2">सामान</th>
-            <th class="pb-2 text-center">मात्रा</th>
-            <th class="pb-2 text-center">दर (₹)</th>
-            <th class="pb-2 text-right">कुल (₹)</th>
-          </tr>
-        </thead>
-        <tbody id="itemsList" class="divide-y divide-gray-100"></tbody>
-      </table>
+    if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'hi-IN'; // हिंदी सपोर्ट
+        recognition.interimResults = false;
 
-      <!-- Grand Totals & Editable Paid Amount -->
-      <div class="bg-gray-50 p-3 rounded-lg space-y-2 mb-4 text-xs">
-        <div class="flex justify-between text-gray-600 items-center">
-          <span>कुल बिल (Grand Total):</span>
-          <span id="grandTotal" class="font-bold text-gray-800 text-sm">₹0</span>
-        </div>
-        
-        <div class="flex justify-between text-gray-600 items-center">
-          <span>जमा राशि (Paid):</span>
-          <div class="flex items-center space-x-1">
-            <span>₹</span>
-            <input type="number" id="paidInput" oninput="recalculateInvoice()" value="0" class="w-20 border rounded px-1.5 py-0.5 text-right font-bold text-green-600 text-xs focus:outline-indigo-500">
-          </div>
-        </div>
+        let isRecording = false;
 
-        <div class="flex justify-between border-t pt-2 text-sm font-bold">
-          <span class="text-red-600">बाकी उधारी (Due):</span>
-          <span id="balanceDue" class="text-red-600">₹0</span>
-        </div>
-      </div>
+        micBtn.onclick = () => {
+            if (!isRecording) {
+                recognition.start();
+                micBtn.classList.add('recording');
+                statusText.innerText = "सुन रहा हूँ... बोलिए!";
+                isRecording = true;
+            } else {
+                recognition.stop();
+            }
+        };
 
-      <!-- WhatsApp Action Button -->
-      <button onclick="shareOnWhatsApp()" class="w-full bg-green-500 hover:bg-green-600 text-white text-xs font-semibold py-2.5 rounded-lg shadow flex items-center justify-center space-x-2">
-        <span>📲 WhatsApp पर बिल भेजें</span>
-      </button>
-    </div>
+        recognition.onresult = async (event) => {
+            const transcript = event.results[0][0].transcript;
+            statusText.innerText = `आपने कहा: "${transcript}"`;
+            micBtn.classList.remove('recording');
+            isRecording = false;
 
-  </div>
+            // Send Text to Backend API
+            processText(transcript);
+        };
 
-  <script>
-    const testBtn = document.getElementById('testBtn');
-    const loading = document.getElementById('loading');
-    const invoiceContainer = document.getElementById('invoiceContainer');
-    const status = document.getElementById('status');
+        recognition.onerror = (event) => {
+            statusText.innerText = "माइक एरर: " + event.error;
+            micBtn.classList.remove('recording');
+            isRecording = false;
+        };
 
-    let currentInvoiceData = null;
+        recognition.onend = () => {
+            micBtn.classList.remove('recording');
+            isRecording = false;
+        };
 
-    testBtn.addEventListener('click', async () => {
-      loading.classList.remove('hidden');
-      invoiceContainer.classList.add('hidden');
+    } else {
+        statusText.innerText = "आपका ब्राउज़र वॉइस रिकग्निशन को सपोर्ट नहीं करता। Chrome का यूज़ करें।";
+    }
 
-      try {
-        const res = await fetch('http://localhost:5000/api/test-billing', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            text: "रमेश भाई के नाम 5 किलो आटा 40 रुपये के भाव से, 2 लीटर तेल 140 के भाव से और 1 किलो चीनी 45 रुपये से लिखो, 200 जमा किया" 
-          })
-        });
+    // Demo Button Handler
+    demoBtn.onclick = () => {
+        processText("रमेश कुमार के नाम 5 किलो आटा 40 रुपये और 2 लीटर तेल 140 रुपये लिखो");
+    };
 
-        const result = await res.json();
-        if (result.success) {
-          currentInvoiceData = result.data;
-          renderInvoice(currentInvoiceData);
-          status.innerText = "आप टेबल में मात्रा/दर बदल सकते हैं!";
+    // Send Text to Backend
+    async function processText(text) {
+        statusText.innerText = "प्रोसेसिंग चालू है...";
+        try {
+            const response = await fetch('/api/test-billing', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: text })
+            });
+            const resData = await response.json();
+            
+            if (resData.success) {
+                statusText.innerText = "बिल बनकर तैयार है! 🎉";
+                resultDiv.style.display = 'block';
+                
+                let billText = `📝 **बिल विवरण**\n👤 ग्राहक: ${resData.data.customer_name || 'N/A'}\n----------------\n`;
+                resData.data.items.forEach(i => {
+                    billText += `• ${i.item_name} (${i.quantity} ${i.unit}) @ ₹${i.rate} = ₹${i.total}\n`;
+                });
+                billText += `----------------\n💵 कुल: ₹${resData.data.grand_total}`;
+                
+                resultDiv.innerText = billText;
+            } else {
+                statusText.innerText = "प्रोसेसिंग एरर!";
+            }
+        } catch (e) {
+            statusText.innerText = "सर्वर एरर!";
         }
-      } catch (err) {
-        status.innerText = "सर्वर चालू करें: node server.js";
-      } finally {
-        loading.classList.add('hidden');
-      }
-    });
-
-    function renderInvoice(data) {
-      document.getElementById('custName').innerText = data.customer_name || 'N/A';
-      document.getElementById('paidInput').value = data.paid_amount || 0;
-
-      const itemsList = document.getElementById('itemsList');
-      itemsList.innerHTML = '';
-
-      data.items.forEach((item, index) => {
-        const row = `
-          <tr class="py-1.5">
-            <td class="py-1.5 font-medium text-gray-800">
-              <input type="text" value="${item.item_name}" oninput="updateItemName(${index}, this.value)" class="w-20 border-b text-xs focus:outline-none">
-            </td>
-            <td class="py-1.5 text-center">
-              <input type="number" value="${item.quantity}" oninput="updateQty(${index}, this.value)" class="w-12 text-center border rounded px-1 py-0.5 text-xs">
-              <span class="text-[10px] text-gray-400">${item.unit}</span>
-            </td>
-            <td class="py-1.5 text-center">
-              <input type="number" value="${item.rate}" oninput="updateRate(${index}, this.value)" class="w-14 text-center border rounded px-1 py-0.5 text-xs">
-            </td>
-            <td class="py-1.5 text-right font-semibold text-gray-800 item-total" id="total-${index}">
-              ₹${item.total}
-            </td>
-          </tr>
-        `;
-        itemsList.innerHTML += row;
-      });
-
-      recalculateInvoice();
-      invoiceContainer.classList.remove('hidden');
     }
+</script>
 
-    // Live Calculation Logic when shopkeeper edits Qty or Rate
-    function updateQty(index, val) {
-      currentInvoiceData.items[index].quantity = parseFloat(val) || 0;
-      recalculateInvoice();
-    }
-
-    function updateRate(index, val) {
-      currentInvoiceData.items[index].rate = parseFloat(val) || 0;
-      recalculateInvoice();
-    }
-
-    function updateItemName(index, val) {
-      currentInvoiceData.items[index].item_name = val;
-    }
-
-    function recalculateInvoice() {
-      if (!currentInvoiceData) return;
-
-      let grandTotal = 0;
-      currentInvoiceData.items.forEach((item, index) => {
-        item.total = item.quantity * item.rate;
-        grandTotal += item.total;
-        
-        const totalElem = document.getElementById(`total-${index}`);
-        if (totalElem) totalElem.innerText = '₹' + item.total;
-      });
-
-      const paidAmount = parseFloat(document.getElementById('paidInput').value) || 0;
-      const balanceDue = grandTotal - paidAmount;
-
-      currentInvoiceData.grand_total = grandTotal;
-      currentInvoiceData.paid_amount = paidAmount;
-      currentInvoiceData.balance_due = balanceDue;
-
-      document.getElementById('grandTotal').innerText = '₹' + grandTotal;
-      document.getElementById('balanceDue').innerText = '₹' + balanceDue;
-    }
-
-    // WhatsApp Message Share Logic
-    function shareOnWhatsApp() {
-      const phone = document.getElementById('custPhone').value.trim();
-      if (!phone) {
-        alert("कृपया ग्राहक का व्हाट्सएप नंबर दर्ज करें!");
-        return;
-      }
-
-      let itemListText = "";
-      currentInvoiceData.items.forEach(item => {
-        itemListText += `• ${item.item_name} (${item.quantity} ${item.unit}) @ ₹${item.rate} = ₹${item.total}\n`;
-      });
-
-      const message = `🧾 *बिल विवरण - ABC Stores*\n\n` +
-        `👤 *ग्राहक:* ${currentInvoiceData.customer_name || 'ग्राहक'}\n` +
-        `----------------------------\n` +
-        `${itemListText}` +
-        `----------------------------\n` +
-        `💰 *कुल बिल:* ₹${currentInvoiceData.grand_total}\n` +
-        `✅ *जमा राशि:* ₹${currentInvoiceData.paid_amount}\n` +
-        `🔻 *बाकी उधारी:* ₹${currentInvoiceData.balance_due}\n\n` +
-        `धन्यवाद! फिर पधारें। 🙏`;
-
-      const encodedMsg = encodeURIComponent(message);
-      const whatsappUrl = `https://wa.me/91${phone}?text=${encodedMsg}`;
-      
-      window.open(whatsappUrl, '_blank');
-    }
-  </script>
 </body>
 </html>
