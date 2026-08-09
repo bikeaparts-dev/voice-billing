@@ -3,34 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Voice Billing App</title>
+    <title>Smart Kirana Voice Billing</title>
+    <!-- HTML2PDF Library for PDF Generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Roboto, sans-serif; background: #f4f6f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 15px; box-sizing: border-box; }
-        .card { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); width: 100%; max-width: 480px; text-align: center; }
-        .mic-btn { background: #ff4757; color: white; border: none; width: 75px; height: 75px; border-radius: 50%; font-size: 30px; cursor: pointer; box-shadow: 0 5px 15px rgba(255, 71, 87, 0.4); transition: 0.3s; margin: 15px 0; }
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #f4f6f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 15px; }
+        .card { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); width: 100%; max-width: 520px; text-align: center; }
+        .mic-btn { background: #ff4757; color: white; border: none; width: 80px; height: 80px; border-radius: 50%; font-size: 32px; cursor: pointer; box-shadow: 0 5px 15px rgba(255, 71, 87, 0.4); transition: all 0.3s ease; margin: 15px 0; outline: none; }
         .mic-btn.recording { animation: pulse 1.2s infinite; background: #2ed573; box-shadow: 0 5px 15px rgba(46, 213, 115, 0.4); }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.08); } 100% { transform: scale(1); } }
-        #status { color: #2e86de; font-weight: 600; margin: 10px 0; font-size: 14px; word-break: break-word; }
-        #live-text { background: #f1f2f6; padding: 10px; border-radius: 8px; font-style: italic; color: #57606f; display: none; font-size: 13px; margin-bottom: 15px; word-break: break-word; }
+        #status { color: #2e86de; font-weight: 600; margin: 10px 0; font-size: 14px; word-break: break-word; min-height: 20px; }
+        #live-text { background: #f1f2f6; padding: 10px 14px; border-radius: 10px; font-style: italic; color: #57606f; display: none; font-size: 13px; margin-bottom: 15px; word-break: break-word; border-left: 4px solid #2e86de; text-align: left; }
 
+        /* Invoice Container Style */
         .invoice-box { background: #ffffff; border: 1px solid #dcdde1; padding: 20px; border-radius: 12px; text-align: left; margin-top: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
         .invoice-header { text-align: center; border-bottom: 2px solid #2f3640; padding-bottom: 10px; margin-bottom: 15px; }
         .invoice-header h3 { margin: 0; color: #2f3640; font-size: 20px; }
         
-        .customer-field { font-weight: bold; margin-bottom: 15px; font-size: 15px; }
-        .customer-field input { border: 1px solid #ccc; padding: 5px 8px; border-radius: 5px; font-size: 14px; width: 60%; }
+        .customer-field { font-weight: bold; margin-bottom: 15px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+        .customer-field input { border: 1px solid #ccc; padding: 6px 10px; border-radius: 6px; font-size: 14px; flex: 1; outline: none; }
+        .customer-field input:focus { border-color: #2e86de; }
 
+        /* Editable Table Styles */
         .bill-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-        .bill-table th, .bill-table td { border: 1px solid #dcdde1; padding: 6px 4px; text-align: center; font-size: 13px; }
+        .bill-table th, .bill-table td { border: 1px solid #dcdde1; padding: 8px 5px; text-align: center; font-size: 13px; }
         .bill-table th { background: #f5f6fa; color: #2f3640; font-weight: bold; }
-        .bill-table td input { width: 95%; border: none; text-align: center; background: transparent; font-size: 13px; font-weight: 500; }
-        .bill-table td input:focus { background: #eccc6833; outline: none; border-radius: 4px; }
+        .bill-table td input { width: 100%; border: none; text-align: center; background: transparent; font-size: 13px; font-weight: 500; outline: none; }
+        .bill-table td input:focus { background: #eccc6833; border-radius: 4px; }
 
         .total-box { font-size: 16px; font-weight: bold; text-align: right; border-top: 2px solid #2f3640; padding-top: 10px; color: #2f3640; }
 
+        /* Action Buttons */
         .action-btns { display: flex; gap: 10px; margin-top: 15px; }
-        .btn-action { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; color: white; display: flex; align-items: center; justify-content: center; gap: 5px; }
+        .btn-action { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; color: white; display: flex; align-items: center; justify-content: center; gap: 5px; transition: opacity 0.2s; }
+        .btn-action:hover { opacity: 0.9; }
         .btn-pdf { background: #e74c3c; }
         .btn-wa { background: #2ecc71; }
     </style>
@@ -38,13 +45,14 @@
 <body>
 
 <div class="card">
-    <h2>🎤 Voice Billing</h2>
+    <h2>🎤 Smart Kirana Voice Billing</h2>
     <p style="color: #636e72; font-size: 13px;">माइक दबाएं, बोलें और तुरंत एडिटेबल बिल पाएं</p>
 
-    <button id="micBtn" class="mic-btn">🎤</button>
+    <button id="micBtn" class="mic-btn" title="माइक्रोफोन ऑन/ऑफ करें">🎤</button>
     <div id="status">बटन दबाकर बोलना शुरू करें</div>
     <div id="live-text"></div>
 
+    <!-- Bill Output Area -->
     <div id="billWrapper" style="display:none;">
         <div id="invoice" class="invoice-box">
             <div class="invoice-header">
@@ -53,20 +61,21 @@
             </div>
 
             <div class="customer-field">
-                👤 ग्राहक: <input type="text" id="custName" value="नकद ग्राहक">
+                👤 ग्राहक: <input type="text" id="custName" value="नकद ग्राहक" placeholder="ग्राहक का नाम">
             </div>
 
             <table class="bill-table" id="itemsTable">
                 <thead>
                     <tr>
-                        <th style="width: 10%;">#</th>
-                        <th style="width: 35%;">सामान</th>
-                        <th style="width: 20%;">मात्रा</th>
-                        <th style="width: 18%;">दर (₹)</th>
-                        <th style="width: 17%;">कुल (₹)</th>
+                        <th style="width: 8%;">#</th>
+                        <th style="width: 37%;">सामान</th>
+                        <th style="width: 22%;">मात्रा</th>
+                        <th style="width: 15%;">दर (₹)</th>
+                        <th style="width: 18%;">कुल (₹)</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody">
+                    <!-- Dynamic Rows -->
                 </tbody>
             </table>
 
@@ -75,6 +84,7 @@
             </div>
         </div>
 
+        <!-- PDF & WhatsApp Action Buttons -->
         <div class="action-btns">
             <button onclick="downloadPDF()" class="btn-action btn-pdf">📄 PDF सेव करें</button>
             <button onclick="shareWhatsApp()" class="btn-action btn-wa">💬 WhatsApp शेयर</button>
@@ -90,17 +100,21 @@
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-    if (SpeechRecognition) {
+    if (!SpeechRecognition) {
+        statusText.innerHTML = "⚠️ इस ब्राउज़र में Voice Recognition उपलब्ध नहीं है। कृपया Google Chrome का उपयोग करें।";
+        micBtn.disabled = true;
+        micBtn.style.opacity = "0.5";
+    } else {
         const recognition = new SpeechRecognition();
         recognition.lang = 'hi-IN';
-        recognition.continuous = true; // लगातार सुनने के लिए
+        recognition.continuous = true;
         recognition.interimResults = true;
 
-        let isManualStop = false;
+        let isRecording = false;
         let finalTranscript = '';
 
         micBtn.onclick = () => {
-            if (!isManualStop) {
+            if (!isRecording) {
                 // रिकॉर्डिंग शुरू
                 finalTranscript = '';
                 liveTextDiv.innerText = '';
@@ -108,16 +122,20 @@
                 billWrapper.style.display = 'none';
                 
                 try {
+                    isRecording = true;
                     recognition.start();
-                    isManualStop = true;
                     micBtn.classList.add('recording');
                     statusText.innerText = "🔴 रिकॉर्डिंग चालू है... (बोलना खत्म करके बटन फिर दबाएं)";
-                } catch (e) { console.error(e); }
+                } catch (e) {
+                    console.error("Mic start error:", e);
+                }
             } else {
-                // रिकॉर्डिंग बंद (जब यूज़र खुद बटन दबाएगा)
-                isManualStop = false;
-                recognition.stop();
+                // रिकॉर्डिंग बंद
+                isRecording = false;
                 micBtn.classList.remove('recording');
+                try {
+                    recognition.stop();
+                } catch (e) {}
                 statusText.innerText = "प्रोसेसिंग चालू है... ⏳";
             }
         };
@@ -134,23 +152,33 @@
             liveTextDiv.innerText = "आपकी आवाज़: " + finalTranscript + interim;
         };
 
-        // अगर ब्राउज़र ऑटो-स्टॉप कर दे तो जबरदस्ती दोबारा चालू रखो जब तक यूज़र बंद न करे!
+        // अगर दुकानदार बोलते समय बीच में रुके, तो माइक अपने आप बंद न हो
         recognition.onend = () => {
-            if (isManualStop) {
+            if (isRecording) {
                 try {
-                    recognition.start(); // अगर आप रुकते भी हैं तो यह रिकॉर्डिंग चालू रखेगा
+                    recognition.start();
                 } catch(e) {}
             } else {
                 micBtn.classList.remove('recording');
                 if (finalTranscript.trim().length > 0) {
                     parseAndShowBill(finalTranscript);
                 } else {
-                    statusText.innerText = "कोई आवाज नहीं सुनी गई। पुनः प्रयास करें।";
+                    statusText.innerText = "कोई आवाज नहीं सुनी गई। कृपया पुनः प्रयास करें।";
                 }
+            }
+        };
+
+        recognition.onerror = (event) => {
+            console.error("Speech Recognition Error:", event.error);
+            if (event.error === 'not-allowed') {
+                statusText.innerText = "⚠️ माइक्रोफोन एक्सेस की अनुमति नहीं मिली।";
+                isRecording = false;
+                micBtn.classList.remove('recording');
             }
         };
     }
 
+    // Call Backend API and Render Editable Bill
     async function parseAndShowBill(text) {
         statusText.innerText = "प्रोसेसिंग चालू है... ⏳";
         try {
@@ -159,41 +187,54 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text: text })
             });
+
+            if (!response.ok) {
+                throw new Error("HTTP Error " + response.status);
+            }
+
             const resData = await response.json();
 
             if (resData.success && resData.data) {
+                let data = resData.data;
+
+                if (!data.items || data.items.length === 0) {
+                    statusText.innerText = "⚠️ सामान समझ नहीं आया। कृपया सामान, मात्रा और कीमत स्पष्ट बोलें।";
+                    return;
+                }
+
                 statusText.innerText = "बिल बनकर तैयार है! 🎉";
                 billWrapper.style.display = 'block';
 
-                let data = resData.data;
                 document.getElementById('custName').value = data.customer_name || 'नकद ग्राहक';
 
                 const tableBody = document.getElementById('tableBody');
                 tableBody.innerHTML = '';
 
-                if (data.items && data.items.length > 0) {
-                    data.items.forEach((item, index) => {
-                        let row = `
-                            <tr>
-                                <td class="sn-col">${index + 1}</td>
-                                <td><input type="text" value="${item.item_name}" oninput="recalculate()"></td>
-                                <td><input type="text" value="${item.quantity} ${item.unit || ''}" oninput="recalculate()"></td>
-                                <td><input type="number" class="rate-input" value="${item.rate}" oninput="recalculate()"></td>
-                                <td class="item-total">₹${item.total}</td>
-                            </tr>
-                        `;
-                        tableBody.innerHTML += row;
-                    });
-                }
+                data.items.forEach((item, index) => {
+                    let qtyDisplay = item.unit ? `${item.quantity} ${item.unit}` : `${item.quantity}`;
+                    let row = `
+                        <tr>
+                            <td>${index + 1}</td>
+                            <td><input type="text" value="${item.item_name}" oninput="recalculate()"></td>
+                            <td><input type="text" value="${qtyDisplay}" oninput="recalculate()"></td>
+                            <td><input type="number" step="any" value="${item.rate}" oninput="recalculate()"></td>
+                            <td class="item-total">₹${formatCurrency(item.total)}</td>
+                        </tr>
+                    `;
+                    tableBody.innerHTML += row;
+                });
+
                 recalculate();
             } else {
-                statusText.innerText = "⚠️ एरर: " + (resData.error || "डेटा नहीं मिल सका");
+                statusText.innerText = "⚠️ " + (resData.error || "सामान समझ नहीं आया। कृपया पुनः प्रयास करें।");
             }
         } catch (e) {
-            statusText.innerText = "❌ सर्वर कनेक्शन एरर!";
+            console.error(e);
+            statusText.innerText = "❌ सर्वर से संपर्क नहीं हो पाया।";
         }
     }
 
+    // Live Calculation Logic on Table Edit
     function recalculate() {
         let rows = document.querySelectorAll('#tableBody tr');
         let grandTotal = 0;
@@ -201,23 +242,35 @@
         rows.forEach((row, index) => {
             row.cells[0].innerText = index + 1;
 
-            let qtyStr = row.cells[2].querySelector('input').value;
+            let qtyStr = row.cells[2].querySelector('input').value.trim();
             let qty = parseFloat(qtyStr) || 1;
             let rate = parseFloat(row.cells[3].querySelector('input').value) || 0;
-            let total = qty * rate;
             
-            row.cells[4].innerText = '₹' + total;
+            let total = Math.round((qty * rate) * 100) / 100;
+            if (isNaN(total) || total < 0) total = 0;
+
+            row.cells[4].innerText = '₹' + formatCurrency(total);
             grandTotal += total;
         });
 
-        document.getElementById('grandTotal').innerText = grandTotal;
+        grandTotal = Math.round(grandTotal * 100) / 100;
+        document.getElementById('grandTotal').innerText = formatCurrency(grandTotal);
     }
 
+    function formatCurrency(val) {
+        let num = Number(val) || 0;
+        return num.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+    }
+
+    // Save PDF Functionality
     function downloadPDF() {
         const element = document.getElementById('invoice');
+        let rawCustName = document.getElementById('custName').value.trim() || 'Customer';
+        let safeCustName = rawCustName.replace(/[\/\\:*?"<>|]/g, '_');
+
         const opt = {
             margin:       0.4,
-            filename:     'Bill_' + document.getElementById('custName').value + '.pdf',
+            filename:     'Bill_' + safeCustName + '.pdf',
             image:        { type: 'jpeg', quality: 0.98 },
             html2canvas:  { scale: 2 },
             jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
@@ -225,8 +278,9 @@
         html2pdf().set(opt).from(element).save();
     }
 
+    // WhatsApp Share Functionality
     function shareWhatsApp() {
-        let custName = document.getElementById('custName').value;
+        let custName = document.getElementById('custName').value.trim() || 'नकद ग्राहक';
         let grandTotal = document.getElementById('grandTotal').innerText;
         
         let msg = `🧾 *स्मार्ट किराना स्टोर - बिल*\n`;
@@ -236,11 +290,11 @@
         let rows = document.querySelectorAll('#tableBody tr');
         rows.forEach((row, index) => {
             let sn = index + 1;
-            let item = row.cells[1].querySelector('input').value;
-            let qty = row.cells[2].querySelector('input').value;
-            let rate = row.cells[3].querySelector('input').value;
-            let total = row.cells[4].innerText;
-            msg += `${sn}. ${item} (${qty}) @ ₹${rate} = ${total}\n`;
+            let item = row.cells[1].querySelector('input').value.trim();
+            let qty = row.cells[2].querySelector('input').value.trim();
+            let rate = row.cells[3].querySelector('input').value.trim();
+            let total = row.cells[4].innerText.replace('₹', '').trim();
+            msg += `${sn}. ${item} (${qty}) @ ₹${rate} = ₹${total}\n`;
         });
 
         msg += `-------------------------\n`;
