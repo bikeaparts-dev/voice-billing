@@ -11,18 +11,20 @@
         .mic-btn.recording { animation: pulse 1.2s infinite; background: #2ed573; }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         .btn-demo { background: #eccc68; border: none; padding: 10px 15px; border-radius: 10px; font-weight: bold; cursor: pointer; margin-top: 10px; width: 100%; }
-        #status { color: #70a1ff; font-weight: bold; margin: 10px 0; }
-        #result { background: #f1f2f6; padding: 15px; border-radius: 10px; text-align: left; margin-top: 15px; font-size: 14px; white-space: pre-wrap; }
+        #status { color: #2e86de; font-weight: bold; margin: 10px 0; min-height: 24px; }
+        #live-text { background: #f1f2f6; padding: 10px; border-radius: 8px; margin: 10px 0; font-style: italic; color: #555; display: none; }
+        #result { background: #e8f5e9; padding: 15px; border-radius: 10px; text-align: left; margin-top: 15px; font-size: 14px; white-space: pre-wrap; border: 1px solid #c8e6c9; }
     </style>
 </head>
 <body>
 
 <div class="card">
     <h2>🎤 Voice Billing</h2>
-    <p>बोलकर या लिखकर तुरंत बिल बनाएं</p>
+    <p>लाल बटन दबाएं, बोलें और फिर बंद करें</p>
 
     <button id="micBtn" class="mic-btn">🎤</button>
-    <div id="status">बटन दबाएं और बोलना शुरू करें</div>
+    <div id="status">बटन दबाकर बोलना शुरू करें</div>
+    <div id="live-text"></div>
 
     <button id="demoBtn" class="btn-demo">⚡ बिना माइक के टेस्ट करें (Demo)</button>
 
@@ -33,52 +35,79 @@
     const micBtn = document.getElementById('micBtn');
     const demoBtn = document.getElementById('demoBtn');
     const statusText = document.getElementById('status');
+    const liveTextDiv = document.getElementById('live-text');
     const resultDiv = document.getElementById('result');
 
-    // Web Speech API Support Check
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
-        recognition.lang = 'hi-IN'; // हिंदी सपोर्ट
-        recognition.interimResults = false;
+        recognition.lang = 'hi-IN'; // हिंदी
+        recognition.continuous = true; // ऑटो बंद होना रोका गया
+        recognition.interimResults = true; // लाइव सुनना चालू
 
         let isRecording = false;
+        let finalTranscript = '';
 
         micBtn.onclick = () => {
             if (!isRecording) {
-                recognition.start();
-                micBtn.classList.add('recording');
-                statusText.innerText = "सुन रहा हूँ... बोलिए!";
-                isRecording = true;
+                finalTranscript = '';
+                liveTextDiv.innerText = '';
+                liveTextDiv.style.display = 'block';
+                resultDiv.style.display = 'none';
+                
+                try {
+                    recognition.start();
+                    micBtn.classList.add('recording');
+                    statusText.innerText = "सुन रहा हूँ... बोलना खत्म करके बटन दोबारा दबाएं!";
+                    isRecording = true;
+                } catch (e) {
+                    console.error(e);
+                }
             } else {
                 recognition.stop();
+                micBtn.classList.remove('recording');
+                isRecording = false;
+                statusText.innerText = "प्रोसेस हो रहा है...";
+                
+                if (finalTranscript.trim().length > 0) {
+                    processText(finalTranscript);
+                } else {
+                    statusText.innerText = "कुछ आवाज़ सुनाई नहीं दी, दोबारा कोशिश करें।";
+                }
             }
         };
 
-        recognition.onresult = async (event) => {
-            const transcript = event.results[0][0].transcript;
-            statusText.innerText = `आपने कहा: "${transcript}"`;
-            micBtn.classList.remove('recording');
-            isRecording = false;
-
-            // Send Text to Backend API
-            processText(transcript);
+        recognition.onresult = (event) => {
+            let interim = '';
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) {
+                    finalTranscript += event.results[i][0].transcript + ' ';
+                } else {
+                    interim += event.results[i][0].transcript;
+                }
+            }
+            liveTextDiv.innerText = "लाइव आवाज़: " + (finalTranscript + interim);
         };
 
         recognition.onerror = (event) => {
-            statusText.innerText = "माइक एरर: " + event.error;
-            micBtn.classList.remove('recording');
-            isRecording = false;
+            console.error(event.error);
+            if (event.error !== 'no-speech') {
+                statusText.innerText = "माइक एरर: " + event.error;
+                micBtn.classList.remove('recording');
+                isRecording = false;
+            }
         };
 
         recognition.onend = () => {
-            micBtn.classList.remove('recording');
-            isRecording = false;
+            // अगर गलती से बंद हो जाए और रिकॉर्डिंग ऑन थी, तो री-स्टार्ट करें
+            if (isRecording) {
+                try { recognition.start(); } catch(e) {}
+            }
         };
 
     } else {
-        statusText.innerText = "आपका ब्राउज़र वॉइस रिकग्निशन को सपोर्ट नहीं करता। Chrome का यूज़ करें।";
+        statusText.innerText = "आपका ब्राउज़र सपोर्ट नहीं करता। Android Chrome का इस्तेमाल करें।";
     }
 
     // Demo Button Handler
@@ -88,7 +117,7 @@
 
     // Send Text to Backend
     async function processText(text) {
-        statusText.innerText = "प्रोसेसिंग चालू है...";
+        statusText.innerText = "बिल बनाया जा रहा है... ⏳";
         try {
             const response = await fetch('/api/test-billing', {
                 method: 'POST',
