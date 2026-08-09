@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Voice Billing App</title>
-    <!-- PDF Generation Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', Roboto, sans-serif; background: #f4f6f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 15px; box-sizing: border-box; }
@@ -15,7 +14,6 @@
         #status { color: #2e86de; font-weight: 600; margin: 10px 0; font-size: 14px; word-break: break-word; }
         #live-text { background: #f1f2f6; padding: 10px; border-radius: 8px; font-style: italic; color: #57606f; display: none; font-size: 13px; margin-bottom: 15px; word-break: break-word; }
 
-        /* Invoice Container Style */
         .invoice-box { background: #ffffff; border: 1px solid #dcdde1; padding: 20px; border-radius: 12px; text-align: left; margin-top: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
         .invoice-header { text-align: center; border-bottom: 2px solid #2f3640; padding-bottom: 10px; margin-bottom: 15px; }
         .invoice-header h3 { margin: 0; color: #2f3640; font-size: 20px; }
@@ -23,7 +21,6 @@
         .customer-field { font-weight: bold; margin-bottom: 15px; font-size: 15px; }
         .customer-field input { border: 1px solid #ccc; padding: 5px 8px; border-radius: 5px; font-size: 14px; width: 60%; }
 
-        /* Editable Table Styles */
         .bill-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
         .bill-table th, .bill-table td { border: 1px solid #dcdde1; padding: 6px 4px; text-align: center; font-size: 13px; }
         .bill-table th { background: #f5f6fa; color: #2f3640; font-weight: bold; }
@@ -32,7 +29,6 @@
 
         .total-box { font-size: 16px; font-weight: bold; text-align: right; border-top: 2px solid #2f3640; padding-top: 10px; color: #2f3640; }
 
-        /* Action Buttons */
         .action-btns { display: flex; gap: 10px; margin-top: 15px; }
         .btn-action { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; color: white; display: flex; align-items: center; justify-content: center; gap: 5px; }
         .btn-pdf { background: #e74c3c; }
@@ -49,7 +45,6 @@
     <div id="status">बटन दबाकर बोलना शुरू करें</div>
     <div id="live-text"></div>
 
-    <!-- Bill Output Area -->
     <div id="billWrapper" style="display:none;">
         <div id="invoice" class="invoice-box">
             <div class="invoice-header">
@@ -72,7 +67,6 @@
                     </tr>
                 </thead>
                 <tbody id="tableBody">
-                    <!-- Dynamic Rows -->
                 </tbody>
             </table>
 
@@ -81,7 +75,6 @@
             </div>
         </div>
 
-        <!-- Download & WhatsApp Share Buttons -->
         <div class="action-btns">
             <button onclick="downloadPDF()" class="btn-action btn-pdf">📄 PDF सेव करें</button>
             <button onclick="shareWhatsApp()" class="btn-action btn-wa">💬 WhatsApp शेयर</button>
@@ -100,14 +93,15 @@
     if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
         recognition.lang = 'hi-IN';
-        recognition.continuous = true;
-        recognition.interimResults = false;
+        recognition.continuous = true; // लगातार सुनने के लिए
+        recognition.interimResults = true;
 
-        let isRecording = false;
+        let isManualStop = false;
         let finalTranscript = '';
 
         micBtn.onclick = () => {
-            if (!isRecording) {
+            if (!isManualStop) {
+                // रिकॉर्डिंग शुरू
                 finalTranscript = '';
                 liveTextDiv.innerText = '';
                 liveTextDiv.style.display = 'block';
@@ -115,37 +109,48 @@
                 
                 try {
                     recognition.start();
+                    isManualStop = true;
                     micBtn.classList.add('recording');
-                    statusText.innerText = "सुन रहा हूँ... बोलना खत्म करके दोबारा दबाएं!";
-                    isRecording = true;
+                    statusText.innerText = "🔴 रिकॉर्डिंग चालू है... (बोलना खत्म करके बटन फिर दबाएं)";
                 } catch (e) { console.error(e); }
             } else {
+                // रिकॉर्डिंग बंद (जब यूज़र खुद बटन दबाएगा)
+                isManualStop = false;
                 recognition.stop();
                 micBtn.classList.remove('recording');
-                isRecording = false;
-                statusText.innerText = "प्रोसेस हो रहा है...";
+                statusText.innerText = "प्रोसेसिंग चालू है... ⏳";
             }
         };
 
         recognition.onresult = (event) => {
+            let interim = '';
             for (let i = event.resultIndex; i < event.results.length; ++i) {
                 if (event.results[i].isFinal) {
                     finalTranscript += event.results[i][0].transcript + ' ';
+                } else {
+                    interim += event.results[i][0].transcript;
                 }
             }
-            liveTextDiv.innerText = "आपकी आवाज़: " + finalTranscript;
+            liveTextDiv.innerText = "आपकी आवाज़: " + finalTranscript + interim;
         };
 
+        // अगर ब्राउज़र ऑटो-स्टॉप कर दे तो जबरदस्ती दोबारा चालू रखो जब तक यूज़र बंद न करे!
         recognition.onend = () => {
-            micBtn.classList.remove('recording');
-            isRecording = false;
-            if (finalTranscript.trim().length > 0) {
-                parseAndShowBill(finalTranscript);
+            if (isManualStop) {
+                try {
+                    recognition.start(); // अगर आप रुकते भी हैं तो यह रिकॉर्डिंग चालू रखेगा
+                } catch(e) {}
+            } else {
+                micBtn.classList.remove('recording');
+                if (finalTranscript.trim().length > 0) {
+                    parseAndShowBill(finalTranscript);
+                } else {
+                    statusText.innerText = "कोई आवाज नहीं सुनी गई। पुनः प्रयास करें।";
+                }
             }
         };
     }
 
-    // Call API and Parse Bill
     async function parseAndShowBill(text) {
         statusText.innerText = "प्रोसेसिंग चालू है... ⏳";
         try {
@@ -182,14 +187,13 @@
                 }
                 recalculate();
             } else {
-                statusText.innerText = "⚠️ एरर: " + (resData.details || resData.error || "डेटा नहीं मिल सका");
+                statusText.innerText = "⚠️ एरर: " + (resData.error || "डेटा नहीं मिल सका");
             }
         } catch (e) {
             statusText.innerText = "❌ सर्वर कनेक्शन एरर!";
         }
     }
 
-    // Live Calculation Logic on Table Edit
     function recalculate() {
         let rows = document.querySelectorAll('#tableBody tr');
         let grandTotal = 0;
