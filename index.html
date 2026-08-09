@@ -14,7 +14,7 @@
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.08); } 100% { transform: scale(1); } }
         .btn-demo { background: #f7b731; color: #2d3436; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; font-size: 14px; margin-bottom: 10px; }
         #status { color: #2e86de; font-weight: 600; margin: 10px 0; font-size: 14px; }
-        #live-text { background: #f1f2f6; padding: 10px; border-radius: 8px; font-style: italic; color: #57606f; display: none; font-size: 13px; margin-bottom: 15px; }
+        #live-text { background: #f1f2f6; padding: 10px; border-radius: 8px; font-style: italic; color: #57606f; display: none; font-size: 13px; margin-bottom: 15px; word-break: break-word; }
 
         /* Invoice Container Style */
         .invoice-box { background: #ffffff; border: 1px solid #dcdde1; padding: 20px; border-radius: 12px; text-align: left; margin-top: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
@@ -26,10 +26,10 @@
 
         /* Editable Table Styles */
         .bill-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-        .bill-table th, .bill-table td { border: 1px solid #dcdde1; padding: 8px; text-align: center; font-size: 13px; }
+        .bill-table th, .bill-table td { border: 1px solid #dcdde1; padding: 6px 4px; text-align: center; font-size: 13px; }
         .bill-table th { background: #f5f6fa; color: #2f3640; font-weight: bold; }
-        .bill-table td input { width: 90%; border: none; text-align: center; background: transparent; font-size: 13px; }
-        .bill-table td input:focus { background: #eccc6833; outline: none; }
+        .bill-table td input { width: 95%; border: none; text-align: center; background: transparent; font-size: 13px; font-weight: 500; }
+        .bill-table td input:focus { background: #eccc6833; outline: none; border-radius: 4px; }
 
         .total-box { font-size: 16px; font-weight: bold; text-align: right; border-top: 2px solid #2f3640; padding-top: 10px; color: #2f3640; }
 
@@ -50,7 +50,7 @@
     <div id="status">बटन दबाकर बोलना शुरू करें</div>
     <div id="live-text"></div>
 
-    <button id="demoBtn" class="btn-demo">⚡ बिना माइक के टेस्ट करें (Demo)</button>
+    <button id="demoBtn" class="btn-demo">⚡ टेस्ट करें (Demo Voice)</button>
 
     <!-- Bill Output Area -->
     <div id="billWrapper" style="display:none;">
@@ -61,20 +61,20 @@
             </div>
 
             <div class="customer-field">
-                👤 ग्राहक: <input type="text" id="custName" value="रमेश कुमार">
+                👤 ग्राहक: <input type="text" id="custName" value="नकद ग्राहक">
             </div>
 
             <table class="bill-table" id="itemsTable">
                 <thead>
                     <tr>
-                        <th>सामान</th>
-                        <th>मात्रा</th>
-                        <th>दर (₹)</th>
-                        <th>कुल (₹)</th>
+                        <th style="width: 35%;">सामान</th>
+                        <th style="width: 25%;">मात्रा</th>
+                        <th style="width: 20%;">दर (₹)</th>
+                        <th style="width: 20%;">कुल (₹)</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody">
-                    <!-- Items inserted here dynamically -->
+                    <!-- Dynamic Rows -->
                 </tbody>
             </table>
 
@@ -100,9 +100,11 @@
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-    function cleanTranscript(text) {
-        return text.replace(/\b(\w+)\b(?:\s+\1)+/gi, '$1');
-    }
+    // Smart Price Database for Auto Detection
+    const PRICE_DB = {
+        "आटा": 40, "मैदा": 45, "शक्कर": 42, "चीनी": 42, "तेल": 140,
+        "फॉर्च्यून": 145, "चावल": 60, "दाल": 120, "नमक": 20, "चायपत्ती": 280, "सूजी": 50
+    };
 
     if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
@@ -123,14 +125,14 @@
                 try {
                     recognition.start();
                     micBtn.classList.add('recording');
-                    statusText.innerText = "सुन रहा हूँ... बोलना पूरा करके दोबारा दबाएं!";
+                    statusText.innerText = "सुन रहा हूँ... बोलना खत्म करके दोबारा दबाएं!";
                     isRecording = true;
                 } catch (e) { console.error(e); }
             } else {
                 recognition.stop();
                 micBtn.classList.remove('recording');
                 isRecording = false;
-                statusText.innerText = "बिल बनाया जा रहा है...";
+                statusText.innerText = "प्रोसेस हो रहा है...";
             }
         };
 
@@ -140,60 +142,91 @@
                     finalTranscript += event.results[i][0].transcript + ' ';
                 }
             }
-            liveTextDiv.innerText = "आवाज़: " + cleanTranscript(finalTranscript);
+            liveTextDiv.innerText = "आपकी आवाज़: " + finalTranscript;
         };
 
         recognition.onend = () => {
             micBtn.classList.remove('recording');
             isRecording = false;
             if (finalTranscript.trim().length > 0) {
-                processText(cleanTranscript(finalTranscript));
+                parseAndShowBill(finalTranscript);
             }
         };
     }
 
     demoBtn.onclick = () => {
-        processText("रमेश कुमार के नाम 1 किलो आटा 40 रुपये 4 किलो मैदा 50 रुपये 6 किलो शक्कर 45 रुपये बिल करना");
+        let sample = "रमेश के नाम 1 किलो आटा 40 रुपये 4 किलो मैदा 50 रुपये 6 किलो शक्कर बिल करना";
+        liveTextDiv.style.display = 'block';
+        liveTextDiv.innerText = "आपकी आवाज़: " + sample;
+        parseAndShowBill(sample);
     };
 
-    // Process Text & Create Table
-    async function processText(text) {
-        statusText.innerText = "प्रोसेसिंग चालू है... ⏳";
-        try {
-            const response = await fetch('/api/test-billing', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: text })
-            });
-            const resData = await response.json();
-            
-            if (resData.success) {
-                statusText.innerText = "बिल बनकर तैयार है! 🎉";
-                billWrapper.style.display = 'block';
-                
-                let data = resData.data;
-                document.getElementById('custName').value = data.customer_name || 'नकद ग्राहक';
-                
-                const tableBody = document.getElementById('tableBody');
-                tableBody.innerHTML = '';
+    // 🎯 SMART VOICE PARSER (Converts Speech Note to Table Directly)
+    function parseAndShowBill(text) {
+        statusText.innerText = "बिल बनकर तैयार है! 🎉";
+        billWrapper.style.display = 'block';
 
-                data.items.forEach((item, index) => {
-                    let row = `
-                        <tr>
-                            <td><input type="text" value="${item.item_name}" oninput="recalculate()"></td>
-                            <td><input type="text" value="${item.quantity} ${item.unit}" oninput="recalculate()"></td>
-                            <td><input type="number" class="rate-input" value="${item.rate}" oninput="recalculate()"></td>
-                            <td class="item-total">₹${item.total}</td>
-                        </tr>
-                    `;
-                    tableBody.innerHTML += row;
-                });
-
-                recalculate();
+        // 1. Extract Customer Name
+        let custName = "नकद ग्राहक";
+        let nameMatch = text.match(/(?:ग्राहक|नाम|के नाम)\s+([a-zA-Bh-zA-Z\u0900-\u097F]+)/i);
+        if (nameMatch) {
+            custName = nameMatch[1].replace(/(का|के|को|बिल|करना)/g, '').trim();
+        } else {
+            // First word check if spoken like "रमेश 1 किलो..."
+            let words = text.trim().split(/\s+/);
+            if (words.length > 0 && isNaN(words[0])) {
+                custName = words[0];
             }
-        } catch (e) {
-            statusText.innerText = "सर्वर एरर!";
         }
+        document.getElementById('custName').value = custName;
+
+        // 2. Extract Items, Quantities & Rates
+        const tableBody = document.getElementById('tableBody');
+        tableBody.innerHTML = '';
+
+        // Regex pattern to find items and numbers
+        let pattern = /(\d+(?:\.\d+)?)\s*(किलो|kg|लीटर|ग्राम|पैकेट|ग्राम)?\s+([\u0900-\u097F\w]+)(?:\s+(\d+)\s*(?:रुपये|रु)?)?/gi;
+        let match;
+        let foundAny = false;
+
+        while ((match = pattern.exec(text)) !== null) {
+            let qty = match[1];
+            let unit = match[2] || "किलो";
+            let itemName = match[3];
+            let spokenRate = match[4];
+
+            // Ignore keywords
+            if (["के", "नाम", "बिल", "करो", "करना", "रुपये", "रु"].includes(itemName)) continue;
+
+            // Rate calculation: Spoken Rate -> DB Rate -> Default (40)
+            let rate = spokenRate ? parseFloat(spokenRate) : (PRICE_DB[itemName] || 40);
+            let total = parseFloat(qty) * rate;
+
+            let row = `
+                <tr>
+                    <td><input type="text" value="${itemName}" oninput="recalculate()"></td>
+                    <td><input type="text" value="${qty} ${unit}" oninput="recalculate()"></td>
+                    <td><input type="number" class="rate-input" value="${rate}" oninput="recalculate()"></td>
+                    <td class="item-total">₹${total}</td>
+                </tr>
+            `;
+            tableBody.innerHTML += row;
+            foundAny = true;
+        }
+
+        // Fallback if regex missed something
+        if (!foundAny) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td><input type="text" value="सामान" oninput="recalculate()"></td>
+                    <td><input type="text" value="1 किलो" oninput="recalculate()"></td>
+                    <td><input type="number" value="50" oninput="recalculate()"></td>
+                    <td class="item-total">₹50</td>
+                </tr>
+            `;
+        }
+
+        recalculate();
     }
 
     // Live Calculation Logic on Table Edit
@@ -218,8 +251,8 @@
     function downloadPDF() {
         const element = document.getElementById('invoice');
         const opt = {
-            margin:       0.5,
-            filename:     'Invoice_' + document.getElementById('custName').value + '.pdf',
+            margin:       0.4,
+            filename:     'Bill_' + document.getElementById('custName').value + '.pdf',
             image:        { type: 'jpeg', quality: 0.98 },
             html2canvas:  { scale: 2 },
             jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
