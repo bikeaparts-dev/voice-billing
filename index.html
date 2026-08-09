@@ -12,7 +12,6 @@
         .mic-btn { background: #ff4757; color: white; border: none; width: 75px; height: 75px; border-radius: 50%; font-size: 30px; cursor: pointer; box-shadow: 0 5px 15px rgba(255, 71, 87, 0.4); transition: 0.3s; margin: 15px 0; }
         .mic-btn.recording { animation: pulse 1.2s infinite; background: #2ed573; box-shadow: 0 5px 15px rgba(46, 213, 115, 0.4); }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.08); } 100% { transform: scale(1); } }
-        .btn-demo { background: #f7b731; color: #2d3436; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; font-size: 14px; margin-bottom: 10px; }
         #status { color: #2e86de; font-weight: 600; margin: 10px 0; font-size: 14px; }
         #live-text { background: #f1f2f6; padding: 10px; border-radius: 8px; font-style: italic; color: #57606f; display: none; font-size: 13px; margin-bottom: 15px; word-break: break-word; }
 
@@ -49,8 +48,6 @@
     <button id="micBtn" class="mic-btn">🎤</button>
     <div id="status">बटन दबाकर बोलना शुरू करें</div>
     <div id="live-text"></div>
-
-    <button id="demoBtn" class="btn-demo">⚡ टेस्ट करें (Demo Voice)</button>
 
     <!-- Bill Output Area -->
     <div id="billWrapper" style="display:none;">
@@ -94,7 +91,6 @@
 
 <script>
     const micBtn = document.getElementById('micBtn');
-    const demoBtn = document.getElementById('demoBtn');
     const statusText = document.getElementById('status');
     const liveTextDiv = document.getElementById('live-text');
     const billWrapper = document.getElementById('billWrapper');
@@ -148,13 +144,6 @@
             }
         };
     }
-
-    demoBtn.onclick = () => {
-        let sample = "रमेश के नाम 1 किलो आटा 40 रुपये 4 किलो मैदा 50 रुपये 6 किलो शक्कर 45 रुपये बिल करना";
-        liveTextDiv.style.display = 'block';
-        liveTextDiv.innerText = "आपकी आवाज़: " + sample;
-        parseAndShowBill(sample);
-    };
 
     // Call API and Parse Bill
     async function parseAndShowBill(text) {
