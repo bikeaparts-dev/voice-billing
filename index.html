@@ -5,22 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Voice Billing</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-        .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 90%; max-width: 400px; text-align: center; }
-        .mic-btn { background: #ff4757; color: white; border: none; width: 80px; height: 80px; border-radius: 50%; font-size: 32px; cursor: pointer; box-shadow: 0 5px 15px rgba(255, 71, 87, 0.4); transition: 0.3s; margin: 20px 0; }
-        .mic-btn.recording { animation: pulse 1.2s infinite; background: #2ed573; }
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-        .btn-demo { background: #eccc68; border: none; padding: 10px 15px; border-radius: 10px; font-weight: bold; cursor: pointer; margin-top: 10px; width: 100%; }
-        #status { color: #2e86de; font-weight: bold; margin: 10px 0; min-height: 24px; }
-        #live-text { background: #f1f2f6; padding: 10px; border-radius: 8px; margin: 10px 0; font-style: italic; color: #555; display: none; }
-        #result { background: #e8f5e9; padding: 15px; border-radius: 10px; text-align: left; margin-top: 15px; font-size: 14px; white-space: pre-wrap; border: 1px solid #c8e6c9; }
+        body { font-family: 'Segoe UI', Roboto, sans-serif; background: #eef2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 15px; box-sizing: border-box; }
+        .card { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); width: 100%; max-width: 420px; text-align: center; }
+        .mic-btn { background: #ff4757; color: white; border: none; width: 80px; height: 80px; border-radius: 50%; font-size: 32px; cursor: pointer; box-shadow: 0 5px 15px rgba(255, 71, 87, 0.4); transition: 0.3s; margin: 15px 0; }
+        .mic-btn.recording { animation: pulse 1.2s infinite; background: #2ed573; box-shadow: 0 5px 15px rgba(46, 213, 115, 0.4); }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.08); } 100% { transform: scale(1); } }
+        .btn-demo { background: #f7b731; color: #2d3436; border: none; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; margin-top: 10px; width: 100%; font-size: 14px; }
+        #status { color: #2e86de; font-weight: 600; margin: 10px 0; min-height: 24px; font-size: 14px; }
+        #live-text { background: #f1f2f6; padding: 10px; border-radius: 8px; margin: 10px 0; font-style: italic; color: #57606f; display: none; font-size: 13px; word-break: break-word; }
+        
+        /* Receipt Bill Formatting */
+        .bill-receipt { background: #fff; border: 1px dashed #b2bec3; padding: 20px; border-radius: 12px; text-align: left; margin-top: 20px; font-family: monospace; font-size: 14px; box-shadow: 0 4px 10px rgba(0,0,0,0.03); }
+        .bill-header { text-align: center; border-bottom: 2px dashed #2d3436; padding-bottom: 10px; margin-bottom: 12px; }
+        .bill-header h3 { margin: 0; color: #2d3436; font-size: 18px; font-family: 'Segoe UI', sans-serif; }
+        .bill-customer { margin-bottom: 10px; font-weight: bold; color: #0984e3; }
+        .bill-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+        .bill-table th, .bill-table td { padding: 6px 0; border-bottom: 1px solid #f1f2f6; text-align: left; }
+        .bill-table th { font-weight: bold; color: #636e72; }
+        .text-right { text-align: right !important; }
+        .bill-total { border-top: 2px dashed #2d3436; padding-top: 10px; font-weight: bold; font-size: 16px; display: flex; justify-content: space-between; color: #2d3436; }
     </style>
 </head>
 <body>
 
 <div class="card">
     <h2>🎤 Voice Billing</h2>
-    <p>लाल बटन दबाएं, बोलें और फिर बंद करें</p>
+    <p style="color: #636e72; font-size: 14px;">लाल बटन दबाएं, बोलें और दोबारा दबाकर बंद करें</p>
 
     <button id="micBtn" class="mic-btn">🎤</button>
     <div id="status">बटन दबाकर बोलना शुरू करें</div>
@@ -40,11 +50,17 @@
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
+    // Duplicate Words Cleanup Function
+    function cleanTranscript(text) {
+        return text.replace(/\b(\w+)\b(?:\s+\1)+/gi, '$1')
+                   .replace(/(kilo|kg|लीटर|ग्राम|लीटर|शक्कर|आटा|मैदा)\s+\1+/gi, '$1');
+    }
+
     if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
-        recognition.lang = 'hi-IN'; // हिंदी
-        recognition.continuous = true; // ऑटो बंद होना रोका गया
-        recognition.interimResults = true; // लाइव सुनना चालू
+        recognition.lang = 'hi-IN';
+        recognition.continuous = true;
+        recognition.interimResults = false; // केवल फाइनल वर्ड लेगा ताकि रिपीट न हो
 
         let isRecording = false;
         let finalTranscript = '';
@@ -69,29 +85,30 @@
                 micBtn.classList.remove('recording');
                 isRecording = false;
                 statusText.innerText = "प्रोसेस हो रहा है...";
-                
-                if (finalTranscript.trim().length > 0) {
-                    processText(finalTranscript);
-                } else {
-                    statusText.innerText = "कुछ आवाज़ सुनाई नहीं दी, दोबारा कोशिश करें।";
-                }
             }
         };
 
         recognition.onresult = (event) => {
-            let interim = '';
             for (let i = event.resultIndex; i < event.results.length; ++i) {
                 if (event.results[i].isFinal) {
                     finalTranscript += event.results[i][0].transcript + ' ';
-                } else {
-                    interim += event.results[i][0].transcript;
                 }
             }
-            liveTextDiv.innerText = "लाइव आवाज़: " + (finalTranscript + interim);
+            const cleanedText = cleanTranscript(finalTranscript);
+            liveTextDiv.innerText = "आपकी आवाज़: " + cleanedText;
+        };
+
+        recognition.onend = () => {
+            micBtn.classList.remove('recording');
+            if (isRecording) {
+                isRecording = false;
+            }
+            if (finalTranscript.trim().length > 0) {
+                processText(cleanTranscript(finalTranscript));
+            }
         };
 
         recognition.onerror = (event) => {
-            console.error(event.error);
             if (event.error !== 'no-speech') {
                 statusText.innerText = "माइक एरर: " + event.error;
                 micBtn.classList.remove('recording');
@@ -99,23 +116,16 @@
             }
         };
 
-        recognition.onend = () => {
-            // अगर गलती से बंद हो जाए और रिकॉर्डिंग ऑन थी, तो री-स्टार्ट करें
-            if (isRecording) {
-                try { recognition.start(); } catch(e) {}
-            }
-        };
-
     } else {
         statusText.innerText = "आपका ब्राउज़र सपोर्ट नहीं करता। Android Chrome का इस्तेमाल करें।";
     }
 
-    // Demo Button Handler
+    // Demo Button
     demoBtn.onclick = () => {
-        processText("रमेश कुमार के नाम 5 किलो आटा 40 रुपये और 2 लीटर तेल 140 रुपये लिखो");
+        processText("रमेश कुमार के नाम 1 किलो आटा 4 किलो मैदा 6 किलो शक्कर बिल करना");
     };
 
-    // Send Text to Backend
+    // Process Text & Generate HTML Receipt Table
     async function processText(text) {
         statusText.innerText = "बिल बनाया जा रहा है... ⏳";
         try {
@@ -130,13 +140,50 @@
                 statusText.innerText = "बिल बनकर तैयार है! 🎉";
                 resultDiv.style.display = 'block';
                 
-                let billText = `📝 **बिल विवरण**\n👤 ग्राहक: ${resData.data.customer_name || 'N/A'}\n----------------\n`;
-                resData.data.items.forEach(i => {
-                    billText += `• ${i.item_name} (${i.quantity} ${i.unit}) @ ₹${i.rate} = ₹${i.total}\n`;
-                });
-                billText += `----------------\n💵 कुल: ₹${resData.data.grand_total}`;
+                let data = resData.data;
                 
-                resultDiv.innerText = billText;
+                let htmlReceipt = `
+                    <div class="bill-receipt">
+                        <div class="bill-header">
+                            <h3>🧾 किराना स्टोर - रसीद</h3>
+                        </div>
+                        <div class="bill-customer">
+                            👤 ग्राहक: ${data.customer_name || 'नकद (Cash)'}
+                        </div>
+                        <table class="bill-table">
+                            <thead>
+                                <tr>
+                                    <th>सामान</th>
+                                    <th>मात्रा</th>
+                                    <th class="text-right">दर</th>
+                                    <th class="text-right">कुल</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+
+                data.items.forEach(item => {
+                    htmlReceipt += `
+                        <tr>
+                            <td>${item.item_name}</td>
+                            <td>${item.quantity} ${item.unit}</td>
+                            <td class="text-right">₹${item.rate}</td>
+                            <td class="text-right">₹${item.total}</td>
+                        </tr>
+                    `;
+                });
+
+                htmlReceipt += `
+                            </tbody>
+                        </table>
+                        <div class="bill-total">
+                            <span>कुल योग (Grand Total):</span>
+                            <span>₹${data.grand_total}</span>
+                        </div>
+                    </div>
+                `;
+                
+                resultDiv.innerHTML = htmlReceipt;
             } else {
                 statusText.innerText = "प्रोसेसिंग एरर!";
             }
