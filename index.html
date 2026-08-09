@@ -12,7 +12,7 @@
         .mic-btn { background: #ff4757; color: white; border: none; width: 75px; height: 75px; border-radius: 50%; font-size: 30px; cursor: pointer; box-shadow: 0 5px 15px rgba(255, 71, 87, 0.4); transition: 0.3s; margin: 15px 0; }
         .mic-btn.recording { animation: pulse 1.2s infinite; background: #2ed573; box-shadow: 0 5px 15px rgba(46, 213, 115, 0.4); }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.08); } 100% { transform: scale(1); } }
-        #status { color: #2e86de; font-weight: 600; margin: 10px 0; font-size: 14px; }
+        #status { color: #2e86de; font-weight: 600; margin: 10px 0; font-size: 14px; word-break: break-word; }
         #live-text { background: #f1f2f6; padding: 10px; border-radius: 8px; font-style: italic; color: #57606f; display: none; font-size: 13px; margin-bottom: 15px; word-break: break-word; }
 
         /* Invoice Container Style */
@@ -179,22 +179,13 @@
                         `;
                         tableBody.innerHTML += row;
                     });
-                } else {
-                    tableBody.innerHTML = `
-                        <tr>
-                            <td class="sn-col">1</td>
-                            <td><input type="text" value="सामान" oninput="recalculate()"></td>
-                            <td><input type="text" value="1 किलो" oninput="recalculate()"></td>
-                            <td><input type="number" value="0" oninput="recalculate()"></td>
-                            <td class="item-total">₹0</td>
-                        </tr>
-                    `;
                 }
-
                 recalculate();
+            } else {
+                statusText.innerText = "⚠️ एरर: " + (resData.details || resData.error || "डेटा नहीं मिल सका");
             }
         } catch (e) {
-            statusText.innerText = "सर्वर एरर!";
+            statusText.innerText = "❌ सर्वर कनेक्शन एरर!";
         }
     }
 
@@ -204,7 +195,6 @@
         let grandTotal = 0;
 
         rows.forEach((row, index) => {
-            // Update S.N. dynamically
             row.cells[0].innerText = index + 1;
 
             let qtyStr = row.cells[2].querySelector('input').value;
@@ -219,7 +209,6 @@
         document.getElementById('grandTotal').innerText = grandTotal;
     }
 
-    // Download PDF Function
     function downloadPDF() {
         const element = document.getElementById('invoice');
         const opt = {
@@ -232,7 +221,6 @@
         html2pdf().set(opt).from(element).save();
     }
 
-    // Direct WhatsApp Share
     function shareWhatsApp() {
         let custName = document.getElementById('custName').value;
         let grandTotal = document.getElementById('grandTotal').innerText;
