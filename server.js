@@ -23,101 +23,106 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "dummy_key"
 });
 
-// 🏪 ऑटो-डिटेक्ट डेटाबेस (Default Price List for Kirana Items)
-const ITEM_PRICE_DATABASE = {
-  "आटा": 40,
-  "मैदा": 45,
-  "शक्कर": 42,
-  "चीनी": 42,
-  "तेल": 140,
-  "फॉर्च्यून तेल": 145,
-  "चावल": 60,
-  "दाल": 120,
-  "नमक": 20,
-  "चायपत्ती": 280
-};
+// फालतू शब्दों की लिस्ट जो कभी सामान का नाम नहीं हो सकते
+const IGNORE_WORDS = ["और", "तथा", "रुपये", "रु", "रुपया", "लिखो", "बिल", "बनाओ", "करना", "का", "के", "की", "नाम", "ग्राम", "किलो", "लीटर", "पैकेट"];
 
-// Simple Fallback Parser (बिना OpenAI Key के आपकी ही आवाज़ से टेबल बनाने के लिए)
-function parseVoiceTextLocally(text) {
-  let custMatch = text.match(/(?:ग्राहक|नाम|के नाम)\s+([a-zA-Bh-zA-Z\u0900-\u097F]+)/i);
-  let customerName = custMatch ? custMatch[1] : "नकद ग्राहक";
+function cleanAndParseText(text) {
+  let custName = "नकद ग्राहक";
+  let nameMatch = text.match(/(?:ग्राहक|नाम|के नाम)\s+([a-zA-Bh-zA-Z\u0900-\u097F]+)/i);
+  if (nameMatch && !IGNORE_WORDS.includes(nameMatch[1])) {
+    custName = nameMatch[1];
+  }
 
   let items = [];
-  // Regex pattern to extract quantity, unit, and item name
-  let regex = /(\d+)\s*(किलो|kg|लीटर|ग्राम|पैकेट|लीटर|ग्राम)\s+([\u0900-\u097F\w\s]+?)(?=(\d+\s*(?:किलो|kg|लीटर|ग्राम|पैकेट)|बिल|करो|$))/gi;
+  // Regex to extract quantity, unit, item, rate
+  let regex = /(\d+(?:\.\d+)?)\s*(किलo|kg|लीटर|ग्राम|पैकेट|किलो)?\s+([\u0900-\u097F\w\s]+?)\s+(\d+)\s*(?:रुपये|रु)?/gi;
   let match;
 
   while ((match = regex.exec(text)) !== null) {
     let qty = parseFloat(match[1]);
-    let unit = match[2];
-    let itemName = match[3].trim().replace(/(रुपये|की दर|का|के|में)/g, '').trim();
+    let unit = match[2] || "किलो";
+    let rawItem = match[3].trim();
+    let rate = parseFloat(match[4]);
 
-    // Check if rate was mentioned
-    let rateMatch = text.match(new RegExp(itemName + `.*?(\\d+)\\s*(?:रुपये|रु|rate)`, 'i'));
-    let rate = rateMatch ? parseFloat(rateMatch[1]) : (ITEM_PRICE_DATABASE[itemName] || 40);
+    // फालतू शब्दों को हटाओ
+    let cleanItem = rawItem.split(/\s+/).filter(word => !IGNORE_WORDS.includes(word)).join(" ");
 
-    items.push({
-      item_name: itemName,
-      quantity: qty,
-      unit: unit,
-      rate: rate,
-      total: qty * rate
+    if (cleanItem.length > 0) {
+      items.push({
+        item_name: cleanItem,
+        quantity: qty,
+        unit: unit,
+        rate: rate,
+        total: qty * rate
+      });
+    }
+  }
+
+  if (items.length === 0) {
+    // Backup fallback pattern
+    let simpleMatches = text.split(/(?:और|,)/);
+    simpleMatches.forEach(part => {
+      let nums = part.match(/\d+/g);
+      let words = part.split(/\s+/).filter(w => !IGNORE_WORDS.includes(w) && isNaN(w));
+      if (words.length > 0 && nums && nums.length >= 2) {
+        items.push({
+          item_name: words[words.length - 1],
+          quantity: parseFloat(nums[0]),
+          unit: "इकाई",
+          rate: parseFloat(nums[1]),
+          total: parseFloat(nums[0]) * parseFloat(nums[1])
+        });
+      }
     });
   }
 
-  if(items.length === 0) {
-    items.push({ item_name: "आइटम (Auto-Detected)", quantity: 1, unit: "pcs", rate: 50, total: 50 });
-  }
-
-  let grandTotal = items.reduce((sum, item) => sum + item.total, 0);
+  let grandTotal = items.reduce((sum, i) => sum + i.total, 0);
 
   return {
-    customer_name: customerName,
+    customer_name: custName,
     items: items,
     grand_total: grandTotal
   };
 }
 
 const SYSTEM_PROMPT = `
-You are a smart Indian billing assistant. Extract items and pricing.
-Item Prices DB for auto-detect if rate is not spoken: ${JSON.stringify(ITEM_PRICE_DATABASE)}
+You are a expert Indian bill parser.
+Extract customer_name and items from the Hindi voice text.
+Ignore words like "और", "रुपये", "लिखो", "के नाम".
 
-Extract:
-- customer_name
-- items array with: item_name, quantity, unit, rate (if mentioned use spoken rate, else auto-detect from DB, fallback 40), total.
-
-Return JSON:
+Return JSON format strictly:
 {
   "customer_name": "string",
-  "items": [{"item_name": "string", "quantity": number, "unit": "string", "rate": number, "total": number}],
+  "items": [
+    { "item_name": "exact item name only", "quantity": number, "unit": "kg/liter/pcs", "rate": number, "total": number }
+  ],
   "grand_total": number
 }
 `;
 
-// API Endpoint for Billing Processing
 app.post('/api/test-billing', async (req, res) => {
   try {
     const { text } = req.body;
-    
-    // If OpenAI API key is missing or dummy, use local dynamic voice parser (No fixed Ramesh data)
-    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === "dummy_key") {
-      let parsedData = parseVoiceTextLocally(text);
-      return res.json({ success: true, rawText: text, data: parsedData });
+
+    if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== "dummy_key") {
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: text }
+        ]
+      });
+      let invoiceData = JSON.parse(completion.choices[0].message.content);
+      return res.json({ success: true, rawText: text, data: invoiceData });
     }
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: text }
-      ]
-    });
+    // Smart Local Clean Parser
+    let parsedData = cleanAndParseText(text);
+    res.json({ success: true, rawText: text, data: parsedData });
 
-    let invoiceData = JSON.parse(completion.choices[0].message.content);
-    res.json({ success: true, rawText: text, data: invoiceData });
   } catch (error) {
-    let parsedData = parseVoiceTextLocally(req.body.text || "");
+    let parsedData = cleanAndParseText(req.body.text || "");
     res.json({ success: true, rawText: req.body.text, data: parsedData });
   }
 });

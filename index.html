@@ -162,23 +162,55 @@
     };
 
     // 🎯 SMART VOICE PARSER (Converts Speech Note to Table Directly)
-    function parseAndShowBill(text) {
-        statusText.innerText = "बिल बनकर तैयार है! 🎉";
-        billWrapper.style.display = 'block';
+   async function parseAndShowBill(text) {
+        statusText.innerText = "प्रोसेसिंग चालू है... ⏳";
+        try {
+            const response = await fetch('/api/test-billing', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: text })
+            });
+            const resData = await response.json();
 
-        // 1. Extract Customer Name
-        let custName = "नकद ग्राहक";
-        let nameMatch = text.match(/(?:ग्राहक|नाम|के नाम)\s+([a-zA-Bh-zA-Z\u0900-\u097F]+)/i);
-        if (nameMatch) {
-            custName = nameMatch[1].replace(/(का|के|को|बिल|करना)/g, '').trim();
-        } else {
-            // First word check if spoken like "रमेश 1 किलो..."
-            let words = text.trim().split(/\s+/);
-            if (words.length > 0 && isNaN(words[0])) {
-                custName = words[0];
+            if (resData.success && resData.data) {
+                statusText.innerText = "बिल बनकर तैयार है! 🎉";
+                billWrapper.style.display = 'block';
+
+                let data = resData.data;
+                document.getElementById('custName').value = data.customer_name || 'नकद ग्राहक';
+
+                const tableBody = document.getElementById('tableBody');
+                tableBody.innerHTML = '';
+
+                if (data.items && data.items.length > 0) {
+                    data.items.forEach(item => {
+                        let row = `
+                            <tr>
+                                <td><input type="text" value="${item.item_name}" oninput="recalculate()"></td>
+                                <td><input type="text" value="${item.quantity} ${item.unit || ''}" oninput="recalculate()"></td>
+                                <td><input type="number" class="rate-input" value="${item.rate}" oninput="recalculate()"></td>
+                                <td class="item-total">₹${item.total}</td>
+                            </tr>
+                        `;
+                        tableBody.innerHTML += row;
+                    });
+                } else {
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td><input type="text" value="सामान" oninput="recalculate()"></td>
+                            <td><input type="text" value="1 किलो" oninput="recalculate()"></td>
+                            <td><input type="number" value="0" oninput="recalculate()"></td>
+                            <td class="item-total">₹0</td>
+                        </tr>
+                    `;
+                }
+
+                recalculate();
             }
+        } catch (e) {
+            statusText.innerText = "सर्वर एरर!";
         }
-        document.getElementById('custName').value = custName;
+    }
 
         // 2. Extract Items, Quantities & Rates
         const tableBody = document.getElementById('tableBody');
