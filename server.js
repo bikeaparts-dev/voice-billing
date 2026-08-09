@@ -15,95 +15,32 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// OpenAI Instance
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "dummy_key"
 });
 
-// फालतू शब्दों को हटाने की सूची
-const STOP_WORDS = ["और", "तथा", "रुपये", "रु", "रुपया", "लिखो", "बिल", "बनाओ", "करना", "का", "के", "की", "नाम"];
-
-// Local Smart Parser (अगर OpenAI Key न हो या लोकल में चले)
-function parseVoiceToTable(text) {
-  let custName = "नकद ग्राहक";
-  let items = [];
-
-  // 1. ग्राहक का नाम निकालना
-  let nameMatch = text.match(/(?:ग्राहक|नाम|के नाम)\s+([a-zA-Bh-zA-Z\u0900-\u097F]+)/i);
-  if (nameMatch && !STOP_WORDS.includes(nameMatch[1])) {
-    custName = nameMatch[1];
-  } else {
-    let firstWord = text.trim().split(/\s+/)[0];
-    if (firstWord && isNaN(firstWord) && !STOP_WORDS.includes(firstWord)) {
-      custName = firstWord;
-    }
-  }
-
-  // 2. सामान, मात्रा और रेट निकालना
-  // Regex pattern: [मात्रा] [इकाई] [सामान नाम] [रेट]
-  let regex = /(\d+(?:\.\d+)?)\s*(किलो|kg|लीटर|ग्राम|पैकेट)?\s+([\u0900-\u097F\w\s]+?)\s+(\d+)\s*(?:रुपये|रु)?/gi;
-  let match;
-
-  while ((match = regex.exec(text)) !== null) {
-    let qty = parseFloat(match[1]);
-    let unit = match[2] || "किलो";
-    let rawItem = match[3].trim();
-    let rate = parseFloat(match[4]);
-
-    // फालतू शब्द साफ करें
-    let cleanItem = rawItem.split(/\s+/).filter(w => !STOP_WORDS.includes(w)).join(" ");
-
-    if (cleanItem) {
-      items.push({
-        item_name: cleanItem,
-        quantity: qty,
-        unit: unit,
-        rate: rate,
-        total: qty * rate
-      });
-    }
-  }
-
-  // अगर रेगुलर पैटर्न न मिले तो सिम्पल बैकअप
-  if (items.length === 0) {
-    let parts = text.split(/(?:और|,)/);
-    parts.forEach(part => {
-      let nums = part.match(/\d+/g);
-      let words = part.split(/\s+/).filter(w => !STOP_WORDS.includes(w) && isNaN(w));
-      if (words.length > 0 && nums && nums.length >= 2) {
-        let q = parseFloat(nums[0]);
-        let r = parseFloat(nums[1]);
-        items.push({
-          item_name: words.join(" "),
-          quantity: q,
-          unit: "किलो",
-          rate: r,
-          total: q * r
-        });
-      }
-    });
-  }
-
-  let grandTotal = items.reduce((sum, i) => sum + i.total, 0);
-
-  return {
-    customer_name: custName,
-    items: items,
-    grand_total: grandTotal
-  };
-}
-
 const SYSTEM_PROMPT = `
-You are an expert Indian billing system. 
-Extract exact customer name, items, quantities, units, rates, and totals from the user's spoken text.
-Ignore filler words like "और", "रुपये", "लिखो", "के नाम".
+You are a smart Indian billing assistant expert in converting Hindi speech to structured invoice data.
 
-Return strict JSON:
+Your task:
+1. Extract customer name if mentioned (e.g. "सोनू के नाम" -> "सोनू"). Default to "नकद ग्राहक" if not mentioned.
+2. Extract all items, quantities, units (e.g., किलो, लीटर, पैकेट, kg), rates (per unit price), and total amount for each item.
+3. Ignore filler words like "और", "रुपये", "लिखो", "बिल बनाओ", "का", "के".
+
+Strict Output Format (JSON only):
 {
-  "customer_name": "string",
+  "customer_name": "Customer Name",
   "items": [
-    { "item_name": "string", "quantity": number, "unit": "string", "rate": number, "total": number }
+    {
+      "item_name": "Item Name",
+      "quantity": 2,
+      "unit": "किलो",
+      "rate": 40,
+      "total": 80
+    }
   ],
-  "grand_total": number
+  "grand_total": 80
 }
 `;
 
@@ -111,28 +48,37 @@ app.post('/api/test-billing', async (req, res) => {
   try {
     const { text } = req.body;
 
-    if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== "dummy_key") {
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: text }
-        ]
-      });
-      let invoiceData = JSON.parse(completion.choices[0].message.content);
-      return res.json({ success: true, rawText: text, data: invoiceData });
+    if (!text || text.trim().length === 0) {
+      return res.status(400).json({ success: false, error: "No voice text provided" });
     }
 
-    // Fallback to local parser
-    let parsedData = parseVoiceToTable(text);
-    res.json({ success: true, rawText: text, data: parsedData });
+    // OpenAI GPT Call
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: `Convert this speech to bill data: "${text}"` }
+      ]
+    });
+
+    let invoiceData = JSON.parse(completion.choices[0].message.content);
+
+    res.json({
+      success: true,
+      rawText: text,
+      data: invoiceData
+    });
 
   } catch (error) {
-    let parsedData = parseVoiceToTable(req.body.text || "");
-    res.json({ success: true, rawText: req.body.text, data: parsedData });
+    console.error("OpenAI Error:", error.message);
+    res.status(500).json({
+      success: false,
+      error: "AI Processing Error",
+      details: error.message
+    });
   }
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 AI Voice Billing Server running on port ${PORT}`));
