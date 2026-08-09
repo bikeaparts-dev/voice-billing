@@ -3,7 +3,7 @@ const cors = require('cors');
 const multer = require('multer');
 const fs = require('fs');
 const dotenv = require('dotenv');
-const path = require('path'); // <-- 1. path मॉड्यूल जोड़ा गया
+const path = require('path');
 const { OpenAI } = require('openai');
 
 dotenv.config();
@@ -11,8 +11,6 @@ dotenv.config();
 const app = express();
 app.use(cors());
 app.use(express.json());
-
-// <-- 2. HTML फाइल और static फाइलों को सर्व करने के लिए ये 2 लाइनें जोडी गईं
 app.use(express.static(__dirname));
 
 app.get('/', (req, res) => {
@@ -25,107 +23,86 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "dummy_key"
 });
 
-// System Prompt
+// 🏪 ऑटो-डिटेक्ट डेटाबेस (Default Price List for Kirana Items)
+const ITEM_PRICE_DATABASE = {
+  "आटा": 40,
+  "मैदा": 45,
+  "शक्कर": 42,
+  "चीनी": 42,
+  "तेल": 140,
+  "फॉर्च्यून तेल": 145,
+  "चावल": 60,
+  "दाल": 120,
+  "नमक": 20,
+  "चायपत्ती": 280
+};
+
+// Simple Fallback Parser (बिना OpenAI Key के आपकी ही आवाज़ से टेबल बनाने के लिए)
+function parseVoiceTextLocally(text) {
+  let custMatch = text.match(/(?:ग्राहक|नाम|के नाम)\s+([a-zA-Bh-zA-Z\u0900-\u097F]+)/i);
+  let customerName = custMatch ? custMatch[1] : "नकद ग्राहक";
+
+  let items = [];
+  // Regex pattern to extract quantity, unit, and item name
+  let regex = /(\d+)\s*(किलो|kg|लीटर|ग्राम|पैकेट|लीटर|ग्राम)\s+([\u0900-\u097F\w\s]+?)(?=(\d+\s*(?:किलो|kg|लीटर|ग्राम|पैकेट)|बिल|करो|$))/gi;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    let qty = parseFloat(match[1]);
+    let unit = match[2];
+    let itemName = match[3].trim().replace(/(रुपये|की दर|का|के|में)/g, '').trim();
+
+    // Check if rate was mentioned
+    let rateMatch = text.match(new RegExp(itemName + `.*?(\\d+)\\s*(?:रुपये|रु|rate)`, 'i'));
+    let rate = rateMatch ? parseFloat(rateMatch[1]) : (ITEM_PRICE_DATABASE[itemName] || 40);
+
+    items.push({
+      item_name: itemName,
+      quantity: qty,
+      unit: unit,
+      rate: rate,
+      total: qty * rate
+    });
+  }
+
+  if(items.length === 0) {
+    items.push({ item_name: "आइटम (Auto-Detected)", quantity: 1, unit: "pcs", rate: 50, total: 50 });
+  }
+
+  let grandTotal = items.reduce((sum, item) => sum + item.total, 0);
+
+  return {
+    customer_name: customerName,
+    items: items,
+    grand_total: grandTotal
+  };
+}
+
 const SYSTEM_PROMPT = `
-You are an expert Indian shop billing assistant. 
-Parse the input into structured JSON for an invoice.
+You are a smart Indian billing assistant. Extract items and pricing.
+Item Prices DB for auto-detect if rate is not spoken: ${JSON.stringify(ITEM_PRICE_DATABASE)}
 
 Extract:
-- customer_name (string or null)
-- items array, where each item has:
-  - item_name (string)
-  - quantity (number)
-  - unit (string: kg, liter, pcs, packet, etc.)
-  - rate (number, default to 0 if not explicitly mentioned in input)
-- paid_amount (number or 0)
+- customer_name
+- items array with: item_name, quantity, unit, rate (if mentioned use spoken rate, else auto-detect from DB, fallback 40), total.
 
-Calculate item total as (quantity * rate) if rate is provided.
-
-Return ONLY valid JSON matching this schema:
+Return JSON:
 {
-  "customer_name": "string or null",
-  "items": [
-    { 
-      "item_name": "string", 
-      "quantity": number, 
-      "unit": "string",
-      "rate": number,
-      "total": number
-    }
-  ],
-  "paid_amount": number or 0
+  "customer_name": "string",
+  "items": [{"item_name": "string", "quantity": number, "unit": "string", "rate": number, "total": number}],
+  "grand_total": number
 }
 `;
 
-// Helper Function for Calculation
-function calculateInvoiceTotals(invoiceData) {
-  let grandTotal = 0;
-  
-  invoiceData.items = invoiceData.items.map(item => {
-    const rate = item.rate || 0;
-    const total = item.quantity * rate;
-    grandTotal += total;
-    return {
-      ...item,
-      rate: rate,
-      total: total
-    };
-  });
-
-  invoiceData.grand_total = grandTotal;
-  invoiceData.balance_due = grandTotal - (invoiceData.paid_amount || 0);
-  return invoiceData;
-}
-
-// 1. API Endpoint for Real Audio Processing
-app.post('/api/voice-billing', upload.single('audio'), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: "No audio file uploaded" });
-
-    const audioFilePath = req.file.path;
-    const transcription = await openai.audio.transcriptions.create({
-      file: fs.createReadStream(audioFilePath),
-      model: "whisper-1",
-      language: "hi"
-    });
-
-    fs.unlinkSync(audioFilePath);
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: transcription.text }
-      ]
-    });
-
-    let invoiceData = JSON.parse(completion.choices[0].message.content);
-    invoiceData = calculateInvoiceTotals(invoiceData);
-
-    res.json({ success: true, rawText: transcription.text, data: invoiceData });
-  } catch (error) {
-    res.status(500).json({ error: "Server Error / Invalid API Key" });
-  }
-});
-
-// 2. API Endpoint for Demo Testing (Without Mic)
+// API Endpoint for Billing Processing
 app.post('/api/test-billing', async (req, res) => {
   try {
     const { text } = req.body;
     
-    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === "your_openai_api_key_here" || process.env.OPENAI_API_KEY === "dummy_key") {
-      let mockData = {
-        customer_name: "रमेश कुमार (Test)",
-        items: [
-          { item_name: "आटा", quantity: 5, unit: "kg", rate: 40, total: 200 },
-          { item_name: "फॉर्च्यून तेल", quantity: 2, unit: "liter", rate: 140, total: 280 },
-          { item_name: "चीनी", quantity: 1, unit: "kg", rate: 45, total: 45 }
-        ],
-        paid_amount: 200
-      };
-      mockData = calculateInvoiceTotals(mockData);
-      return res.json({ success: true, rawText: text, data: mockData });
+    // If OpenAI API key is missing or dummy, use local dynamic voice parser (No fixed Ramesh data)
+    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === "dummy_key") {
+      let parsedData = parseVoiceTextLocally(text);
+      return res.json({ success: true, rawText: text, data: parsedData });
     }
 
     const completion = await openai.chat.completions.create({
@@ -138,13 +115,12 @@ app.post('/api/test-billing', async (req, res) => {
     });
 
     let invoiceData = JSON.parse(completion.choices[0].message.content);
-    invoiceData = calculateInvoiceTotals(invoiceData);
-
     res.json({ success: true, rawText: text, data: invoiceData });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    let parsedData = parseVoiceTextLocally(req.body.text || "");
+    res.json({ success: true, rawText: req.body.text, data: parsedData });
   }
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
