@@ -67,10 +67,11 @@
             <table class="bill-table" id="itemsTable">
                 <thead>
                     <tr>
+                        <th style="width: 10%;">#</th>
                         <th style="width: 35%;">सामान</th>
-                        <th style="width: 25%;">मात्रा</th>
-                        <th style="width: 20%;">दर (₹)</th>
-                        <th style="width: 20%;">कुल (₹)</th>
+                        <th style="width: 20%;">मात्रा</th>
+                        <th style="width: 18%;">दर (₹)</th>
+                        <th style="width: 17%;">कुल (₹)</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody">
@@ -99,12 +100,6 @@
     const billWrapper = document.getElementById('billWrapper');
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-    // Smart Price Database for Auto Detection
-    const PRICE_DB = {
-        "आटा": 40, "मैदा": 45, "शक्कर": 42, "चीनी": 42, "तेल": 140,
-        "फॉर्च्यून": 145, "चावल": 60, "दाल": 120, "नमक": 20, "चायपत्ती": 280, "सूजी": 50
-    };
 
     if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
@@ -155,14 +150,14 @@
     }
 
     demoBtn.onclick = () => {
-        let sample = "रमेश के नाम 1 किलो आटा 40 रुपये 4 किलो मैदा 50 रुपये 6 किलो शक्कर बिल करना";
+        let sample = "रमेश के नाम 1 किलो आटा 40 रुपये 4 किलो मैदा 50 रुपये 6 किलो शक्कर 45 रुपये बिल करना";
         liveTextDiv.style.display = 'block';
         liveTextDiv.innerText = "आपकी आवाज़: " + sample;
         parseAndShowBill(sample);
     };
 
-    // 🎯 SMART VOICE PARSER (Converts Speech Note to Table Directly)
-   async function parseAndShowBill(text) {
+    // Call API and Parse Bill
+    async function parseAndShowBill(text) {
         statusText.innerText = "प्रोसेसिंग चालू है... ⏳";
         try {
             const response = await fetch('/api/test-billing', {
@@ -183,9 +178,10 @@
                 tableBody.innerHTML = '';
 
                 if (data.items && data.items.length > 0) {
-                    data.items.forEach(item => {
+                    data.items.forEach((item, index) => {
                         let row = `
                             <tr>
+                                <td class="sn-col">${index + 1}</td>
                                 <td><input type="text" value="${item.item_name}" oninput="recalculate()"></td>
                                 <td><input type="text" value="${item.quantity} ${item.unit || ''}" oninput="recalculate()"></td>
                                 <td><input type="number" class="rate-input" value="${item.rate}" oninput="recalculate()"></td>
@@ -197,6 +193,7 @@
                 } else {
                     tableBody.innerHTML = `
                         <tr>
+                            <td class="sn-col">1</td>
                             <td><input type="text" value="सामान" oninput="recalculate()"></td>
                             <td><input type="text" value="1 किलो" oninput="recalculate()"></td>
                             <td><input type="number" value="0" oninput="recalculate()"></td>
@@ -212,67 +209,21 @@
         }
     }
 
-        // 2. Extract Items, Quantities & Rates
-        const tableBody = document.getElementById('tableBody');
-        tableBody.innerHTML = '';
-
-        // Regex pattern to find items and numbers
-        let pattern = /(\d+(?:\.\d+)?)\s*(किलो|kg|लीटर|ग्राम|पैकेट|ग्राम)?\s+([\u0900-\u097F\w]+)(?:\s+(\d+)\s*(?:रुपये|रु)?)?/gi;
-        let match;
-        let foundAny = false;
-
-        while ((match = pattern.exec(text)) !== null) {
-            let qty = match[1];
-            let unit = match[2] || "किलो";
-            let itemName = match[3];
-            let spokenRate = match[4];
-
-            // Ignore keywords
-            if (["के", "नाम", "बिल", "करो", "करना", "रुपये", "रु"].includes(itemName)) continue;
-
-            // Rate calculation: Spoken Rate -> DB Rate -> Default (40)
-            let rate = spokenRate ? parseFloat(spokenRate) : (PRICE_DB[itemName] || 40);
-            let total = parseFloat(qty) * rate;
-
-            let row = `
-                <tr>
-                    <td><input type="text" value="${itemName}" oninput="recalculate()"></td>
-                    <td><input type="text" value="${qty} ${unit}" oninput="recalculate()"></td>
-                    <td><input type="number" class="rate-input" value="${rate}" oninput="recalculate()"></td>
-                    <td class="item-total">₹${total}</td>
-                </tr>
-            `;
-            tableBody.innerHTML += row;
-            foundAny = true;
-        }
-
-        // Fallback if regex missed something
-        if (!foundAny) {
-            tableBody.innerHTML = `
-                <tr>
-                    <td><input type="text" value="सामान" oninput="recalculate()"></td>
-                    <td><input type="text" value="1 किलो" oninput="recalculate()"></td>
-                    <td><input type="number" value="50" oninput="recalculate()"></td>
-                    <td class="item-total">₹50</td>
-                </tr>
-            `;
-        }
-
-        recalculate();
-    }
-
     // Live Calculation Logic on Table Edit
     function recalculate() {
         let rows = document.querySelectorAll('#tableBody tr');
         let grandTotal = 0;
 
-        rows.forEach(row => {
-            let qtyStr = row.cells[1].querySelector('input').value;
+        rows.forEach((row, index) => {
+            // Update S.N. dynamically
+            row.cells[0].innerText = index + 1;
+
+            let qtyStr = row.cells[2].querySelector('input').value;
             let qty = parseFloat(qtyStr) || 1;
-            let rate = parseFloat(row.cells[2].querySelector('input').value) || 0;
+            let rate = parseFloat(row.cells[3].querySelector('input').value) || 0;
             let total = qty * rate;
             
-            row.cells[3].innerText = '₹' + total;
+            row.cells[4].innerText = '₹' + total;
             grandTotal += total;
         });
 
@@ -302,12 +253,13 @@
         msg += `-------------------------\n`;
 
         let rows = document.querySelectorAll('#tableBody tr');
-        rows.forEach(row => {
-            let item = row.cells[0].querySelector('input').value;
-            let qty = row.cells[1].querySelector('input').value;
-            let rate = row.cells[2].querySelector('input').value;
-            let total = row.cells[3].innerText;
-            msg += `• ${item} (${qty}) @ ₹${rate} = ${total}\n`;
+        rows.forEach((row, index) => {
+            let sn = index + 1;
+            let item = row.cells[1].querySelector('input').value;
+            let qty = row.cells[2].querySelector('input').value;
+            let rate = row.cells[3].querySelector('input').value;
+            let total = row.cells[4].innerText;
+            msg += `${sn}. ${item} (${qty}) @ ₹${rate} = ${total}\n`;
         });
 
         msg += `-------------------------\n`;
