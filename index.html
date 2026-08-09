@@ -3,34 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Voice Billing</title>
+    <title>Voice Billing App</title>
+    <!-- PDF Generation Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Roboto, sans-serif; background: #eef2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 15px; box-sizing: border-box; }
-        .card { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); width: 100%; max-width: 420px; text-align: center; }
-        .mic-btn { background: #ff4757; color: white; border: none; width: 80px; height: 80px; border-radius: 50%; font-size: 32px; cursor: pointer; box-shadow: 0 5px 15px rgba(255, 71, 87, 0.4); transition: 0.3s; margin: 15px 0; }
+        body { font-family: 'Segoe UI', Roboto, sans-serif; background: #f4f6f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 15px; box-sizing: border-box; }
+        .card { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); width: 100%; max-width: 480px; text-align: center; }
+        .mic-btn { background: #ff4757; color: white; border: none; width: 75px; height: 75px; border-radius: 50%; font-size: 30px; cursor: pointer; box-shadow: 0 5px 15px rgba(255, 71, 87, 0.4); transition: 0.3s; margin: 15px 0; }
         .mic-btn.recording { animation: pulse 1.2s infinite; background: #2ed573; box-shadow: 0 5px 15px rgba(46, 213, 115, 0.4); }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.08); } 100% { transform: scale(1); } }
-        .btn-demo { background: #f7b731; color: #2d3436; border: none; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; margin-top: 10px; width: 100%; font-size: 14px; }
-        #status { color: #2e86de; font-weight: 600; margin: 10px 0; min-height: 24px; font-size: 14px; }
-        #live-text { background: #f1f2f6; padding: 10px; border-radius: 8px; margin: 10px 0; font-style: italic; color: #57606f; display: none; font-size: 13px; word-break: break-word; }
+        .btn-demo { background: #f7b731; color: #2d3436; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; font-size: 14px; margin-bottom: 10px; }
+        #status { color: #2e86de; font-weight: 600; margin: 10px 0; font-size: 14px; }
+        #live-text { background: #f1f2f6; padding: 10px; border-radius: 8px; font-style: italic; color: #57606f; display: none; font-size: 13px; margin-bottom: 15px; }
+
+        /* Invoice Container Style */
+        .invoice-box { background: #ffffff; border: 1px solid #dcdde1; padding: 20px; border-radius: 12px; text-align: left; margin-top: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .invoice-header { text-align: center; border-bottom: 2px solid #2f3640; padding-bottom: 10px; margin-bottom: 15px; }
+        .invoice-header h3 { margin: 0; color: #2f3640; font-size: 20px; }
         
-        /* Receipt Bill Formatting */
-        .bill-receipt { background: #fff; border: 1px dashed #b2bec3; padding: 20px; border-radius: 12px; text-align: left; margin-top: 20px; font-family: monospace; font-size: 14px; box-shadow: 0 4px 10px rgba(0,0,0,0.03); }
-        .bill-header { text-align: center; border-bottom: 2px dashed #2d3436; padding-bottom: 10px; margin-bottom: 12px; }
-        .bill-header h3 { margin: 0; color: #2d3436; font-size: 18px; font-family: 'Segoe UI', sans-serif; }
-        .bill-customer { margin-bottom: 10px; font-weight: bold; color: #0984e3; }
-        .bill-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
-        .bill-table th, .bill-table td { padding: 6px 0; border-bottom: 1px solid #f1f2f6; text-align: left; }
-        .bill-table th { font-weight: bold; color: #636e72; }
-        .text-right { text-align: right !important; }
-        .bill-total { border-top: 2px dashed #2d3436; padding-top: 10px; font-weight: bold; font-size: 16px; display: flex; justify-content: space-between; color: #2d3436; }
+        .customer-field { font-weight: bold; margin-bottom: 15px; font-size: 15px; }
+        .customer-field input { border: 1px solid #ccc; padding: 5px 8px; border-radius: 5px; font-size: 14px; width: 60%; }
+
+        /* Editable Table Styles */
+        .bill-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+        .bill-table th, .bill-table td { border: 1px solid #dcdde1; padding: 8px; text-align: center; font-size: 13px; }
+        .bill-table th { background: #f5f6fa; color: #2f3640; font-weight: bold; }
+        .bill-table td input { width: 90%; border: none; text-align: center; background: transparent; font-size: 13px; }
+        .bill-table td input:focus { background: #eccc6833; outline: none; }
+
+        .total-box { font-size: 16px; font-weight: bold; text-align: right; border-top: 2px solid #2f3640; padding-top: 10px; color: #2f3640; }
+
+        /* Action Buttons */
+        .action-btns { display: flex; gap: 10px; margin-top: 15px; }
+        .btn-action { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; color: white; display: flex; align-items: center; justify-content: center; gap: 5px; }
+        .btn-pdf { background: #e74c3c; }
+        .btn-wa { background: #2ecc71; }
     </style>
 </head>
 <body>
 
 <div class="card">
     <h2>🎤 Voice Billing</h2>
-    <p style="color: #636e72; font-size: 14px;">लाल बटन दबाएं, बोलें और दोबारा दबाकर बंद करें</p>
+    <p style="color: #636e72; font-size: 13px;">माइक दबाएं, बोलें और तुरंत एडिटेबल बिल पाएं</p>
 
     <button id="micBtn" class="mic-btn">🎤</button>
     <div id="status">बटन दबाकर बोलना शुरू करें</div>
@@ -38,7 +52,43 @@
 
     <button id="demoBtn" class="btn-demo">⚡ बिना माइक के टेस्ट करें (Demo)</button>
 
-    <div id="result" style="display:none;"></div>
+    <!-- Bill Output Area -->
+    <div id="billWrapper" style="display:none;">
+        <div id="invoice" class="invoice-box">
+            <div class="invoice-header">
+                <h3>🧾 स्मार्ट किराना स्टोर</h3>
+                <small style="color:#718093;">आवाज द्वारा जनरेट किया गया बिल</small>
+            </div>
+
+            <div class="customer-field">
+                👤 ग्राहक: <input type="text" id="custName" value="रमेश कुमार">
+            </div>
+
+            <table class="bill-table" id="itemsTable">
+                <thead>
+                    <tr>
+                        <th>सामान</th>
+                        <th>मात्रा</th>
+                        <th>दर (₹)</th>
+                        <th>कुल (₹)</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- Items inserted here dynamically -->
+                </tbody>
+            </table>
+
+            <div class="total-box">
+                कुल योग: ₹<span id="grandTotal">0</span>
+            </div>
+        </div>
+
+        <!-- Download & WhatsApp Share Buttons -->
+        <div class="action-btns">
+            <button onclick="downloadPDF()" class="btn-action btn-pdf">📄 PDF सेव करें</button>
+            <button onclick="shareWhatsApp()" class="btn-action btn-wa">💬 WhatsApp शेयर</button>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -46,21 +96,19 @@
     const demoBtn = document.getElementById('demoBtn');
     const statusText = document.getElementById('status');
     const liveTextDiv = document.getElementById('live-text');
-    const resultDiv = document.getElementById('result');
+    const billWrapper = document.getElementById('billWrapper');
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-    // Duplicate Words Cleanup Function
     function cleanTranscript(text) {
-        return text.replace(/\b(\w+)\b(?:\s+\1)+/gi, '$1')
-                   .replace(/(kilo|kg|लीटर|ग्राम|लीटर|शक्कर|आटा|मैदा)\s+\1+/gi, '$1');
+        return text.replace(/\b(\w+)\b(?:\s+\1)+/gi, '$1');
     }
 
     if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
         recognition.lang = 'hi-IN';
         recognition.continuous = true;
-        recognition.interimResults = false; // केवल फाइनल वर्ड लेगा ताकि रिपीट न हो
+        recognition.interimResults = false;
 
         let isRecording = false;
         let finalTranscript = '';
@@ -70,21 +118,19 @@
                 finalTranscript = '';
                 liveTextDiv.innerText = '';
                 liveTextDiv.style.display = 'block';
-                resultDiv.style.display = 'none';
+                billWrapper.style.display = 'none';
                 
                 try {
                     recognition.start();
                     micBtn.classList.add('recording');
-                    statusText.innerText = "सुन रहा हूँ... बोलना खत्म करके बटन दोबारा दबाएं!";
+                    statusText.innerText = "सुन रहा हूँ... बोलना पूरा करके दोबारा दबाएं!";
                     isRecording = true;
-                } catch (e) {
-                    console.error(e);
-                }
+                } catch (e) { console.error(e); }
             } else {
                 recognition.stop();
                 micBtn.classList.remove('recording');
                 isRecording = false;
-                statusText.innerText = "प्रोसेस हो रहा है...";
+                statusText.innerText = "बिल बनाया जा रहा है...";
             }
         };
 
@@ -94,40 +140,25 @@
                     finalTranscript += event.results[i][0].transcript + ' ';
                 }
             }
-            const cleanedText = cleanTranscript(finalTranscript);
-            liveTextDiv.innerText = "आपकी आवाज़: " + cleanedText;
+            liveTextDiv.innerText = "आवाज़: " + cleanTranscript(finalTranscript);
         };
 
         recognition.onend = () => {
             micBtn.classList.remove('recording');
-            if (isRecording) {
-                isRecording = false;
-            }
+            isRecording = false;
             if (finalTranscript.trim().length > 0) {
                 processText(cleanTranscript(finalTranscript));
             }
         };
-
-        recognition.onerror = (event) => {
-            if (event.error !== 'no-speech') {
-                statusText.innerText = "माइक एरर: " + event.error;
-                micBtn.classList.remove('recording');
-                isRecording = false;
-            }
-        };
-
-    } else {
-        statusText.innerText = "आपका ब्राउज़र सपोर्ट नहीं करता। Android Chrome का इस्तेमाल करें।";
     }
 
-    // Demo Button
     demoBtn.onclick = () => {
-        processText("रमेश कुमार के नाम 1 किलो आटा 4 किलो मैदा 6 किलो शक्कर बिल करना");
+        processText("रमेश कुमार के नाम 1 किलो आटा 40 रुपये 4 किलो मैदा 50 रुपये 6 किलो शक्कर 45 रुपये बिल करना");
     };
 
-    // Process Text & Generate HTML Receipt Table
+    // Process Text & Create Table
     async function processText(text) {
-        statusText.innerText = "बिल बनाया जा रहा है... ⏳";
+        statusText.innerText = "प्रोसेसिंग चालू है... ⏳";
         try {
             const response = await fetch('/api/test-billing', {
                 method: 'POST',
@@ -138,58 +169,88 @@
             
             if (resData.success) {
                 statusText.innerText = "बिल बनकर तैयार है! 🎉";
-                resultDiv.style.display = 'block';
+                billWrapper.style.display = 'block';
                 
                 let data = resData.data;
+                document.getElementById('custName').value = data.customer_name || 'नकद ग्राहक';
                 
-                let htmlReceipt = `
-                    <div class="bill-receipt">
-                        <div class="bill-header">
-                            <h3>🧾 किराना स्टोर - रसीद</h3>
-                        </div>
-                        <div class="bill-customer">
-                            👤 ग्राहक: ${data.customer_name || 'नकद (Cash)'}
-                        </div>
-                        <table class="bill-table">
-                            <thead>
-                                <tr>
-                                    <th>सामान</th>
-                                    <th>मात्रा</th>
-                                    <th class="text-right">दर</th>
-                                    <th class="text-right">कुल</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                `;
+                const tableBody = document.getElementById('tableBody');
+                tableBody.innerHTML = '';
 
-                data.items.forEach(item => {
-                    htmlReceipt += `
+                data.items.forEach((item, index) => {
+                    let row = `
                         <tr>
-                            <td>${item.item_name}</td>
-                            <td>${item.quantity} ${item.unit}</td>
-                            <td class="text-right">₹${item.rate}</td>
-                            <td class="text-right">₹${item.total}</td>
+                            <td><input type="text" value="${item.item_name}" oninput="recalculate()"></td>
+                            <td><input type="text" value="${item.quantity} ${item.unit}" oninput="recalculate()"></td>
+                            <td><input type="number" class="rate-input" value="${item.rate}" oninput="recalculate()"></td>
+                            <td class="item-total">₹${item.total}</td>
                         </tr>
                     `;
+                    tableBody.innerHTML += row;
                 });
 
-                htmlReceipt += `
-                            </tbody>
-                        </table>
-                        <div class="bill-total">
-                            <span>कुल योग (Grand Total):</span>
-                            <span>₹${data.grand_total}</span>
-                        </div>
-                    </div>
-                `;
-                
-                resultDiv.innerHTML = htmlReceipt;
-            } else {
-                statusText.innerText = "प्रोसेसिंग एरर!";
+                recalculate();
             }
         } catch (e) {
             statusText.innerText = "सर्वर एरर!";
         }
+    }
+
+    // Live Calculation Logic on Table Edit
+    function recalculate() {
+        let rows = document.querySelectorAll('#tableBody tr');
+        let grandTotal = 0;
+
+        rows.forEach(row => {
+            let qtyStr = row.cells[1].querySelector('input').value;
+            let qty = parseFloat(qtyStr) || 1;
+            let rate = parseFloat(row.cells[2].querySelector('input').value) || 0;
+            let total = qty * rate;
+            
+            row.cells[3].innerText = '₹' + total;
+            grandTotal += total;
+        });
+
+        document.getElementById('grandTotal').innerText = grandTotal;
+    }
+
+    // Download PDF Function
+    function downloadPDF() {
+        const element = document.getElementById('invoice');
+        const opt = {
+            margin:       0.5,
+            filename:     'Invoice_' + document.getElementById('custName').value + '.pdf',
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2 },
+            jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+        };
+        html2pdf().set(opt).from(element).save();
+    }
+
+    // Direct WhatsApp Share
+    function shareWhatsApp() {
+        let custName = document.getElementById('custName').value;
+        let grandTotal = document.getElementById('grandTotal').innerText;
+        
+        let msg = `🧾 *स्मार्ट किराना स्टोर - बिल*\n`;
+        msg += `👤 ग्राहक: ${custName}\n`;
+        msg += `-------------------------\n`;
+
+        let rows = document.querySelectorAll('#tableBody tr');
+        rows.forEach(row => {
+            let item = row.cells[0].querySelector('input').value;
+            let qty = row.cells[1].querySelector('input').value;
+            let rate = row.cells[2].querySelector('input').value;
+            let total = row.cells[3].innerText;
+            msg += `• ${item} (${qty}) @ ₹${rate} = ${total}\n`;
+        });
+
+        msg += `-------------------------\n`;
+        msg += `💵 *कुल योग: ₹${grandTotal}*\n\n`;
+        msg += `धन्यवाद! फिर पधारें। 🙏`;
+
+        let url = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+        window.open(url, '_blank');
     }
 </script>
 
